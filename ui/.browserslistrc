@@ -1,0 +1,10 @@
+# Electron targets - based on Chromium version in Electron
+# Electron 33.x uses Chromium 130.x
+Chrome >= 130
+ChromeAndroid >= 130
+
+# Modern browsers for web build (if needed)
+> 1%
+last 2 versions
+not dead
+not ie 11

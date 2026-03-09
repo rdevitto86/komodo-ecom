@@ -1,0 +1,56 @@
+services:
+  komodo-web-local:
+    build:
+      context: .
+      target: dev
+    profiles: ["local"]
+    ports: ["3000:3000"]
+    environment:
+      - ENV=local
+      - LOG_LEVEL=debug
+      - PUBLIC_API_URL=http://api-dev:8080
+      - AWS_CLIENT_ID=
+      - AWS_CLIENT_SECRET=
+      - AWS_REGION=us-east-1
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+  komodo-web-dev:
+    build:
+      context: .
+      target: dev
+    profiles: ["dev"]
+    ports: ["3000:3000"]
+    environment:
+      - ENV=dev
+      - LOG_LEVEL=debug
+      - PUBLIC_API_URL=http://api-dev:8080
+      - AWS_CLIENT_ID=
+      - AWS_CLIENT_SECRET=
+      - AWS_REGION=us-east-1
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+  komodo-web-staging:
+    build:
+      context: .
+      target: prod
+    profiles: ["staging"]
+    ports: ["3001:3000"]
+    environment:
+      - ENV=staging
+      - LOG_LEVEL=info
+      - PUBLIC_API_URL=https://staging-api.komodo.com
+      - ORIGIN=https://staging.komodo.com
+
+  komodo-web-prod:
+    image: komodo-ecom-web:latest
+    profiles: ["prod"]
+    ports: ["80:3000"]
+    environment:
+      - ENV=prod
+      - LOG_LEVEL=error
+      - PUBLIC_API_URL=https://api.komodo.com
+      - ORIGIN=https://www.komodo.com

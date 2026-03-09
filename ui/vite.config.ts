@@ -9,7 +9,7 @@ export default defineConfig({
   ],
   assetsInclude: ['**/*.glb', '**/*.gltf'],
   server: {
-    port: 3000,
+    port: Number(process.env.PORT) || 7001,
     hmr: {
       overlay: true
     }

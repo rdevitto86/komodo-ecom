@@ -24,7 +24,7 @@ export default defineConfig([
         avoidEscape: false,
         allowTemplateLiterals: false,
       }],
-      'indent': ['error', 4, { SwitchCase: 1 }],
+      'indent': ['error', 2, { SwitchCase: 1 }],
       'no-trailing-spaces': 'error',
       'no-irregular-whitespace': 'error',
       'no-mixed-spaces-and-tabs': 'error',

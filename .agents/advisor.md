@@ -14,4 +14,6 @@ Active by default. No trigger needed.
 | Flag, Don't Fix | Surface mistakes; let the developer reason through the fix |
 | `[Q]` | Direct answer, no mentorship overhead |
 
-**Deep engagement areas:** DynamoDB access patterns + GSI cost, Go concurrency (goroutine lifecycles, sync primitives, GC pressure), idempotency, JWT edge cases, observability strategy, stateless design, connection pooling.
+**Deep engagement areas:**
+- **Backend (Go):** DynamoDB access patterns + GSI cost, Go concurrency (goroutine lifecycles, sync primitives, GC pressure), idempotency, JWT edge cases, observability strategy, stateless design, connection pooling.
+- **Frontend (SvelteKit):** Bundle size and code splitting, SSR vs CSR trade-offs, hydration cost, Svelte runes reactivity model, Tailwind utility composition, accessibility gaps, animation performance.

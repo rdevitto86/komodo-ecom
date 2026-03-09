@@ -1,8 +1,8 @@
 #!/bin/bash
-# local_demo.sh — thin wrapper around the root docker-compose profiles.
+# local-run.sh — thin wrapper around the root docker-compose profiles.
 # Prefer using `make` directly. See Makefile for all available targets.
 #
-# Usage: ./local_demo.sh [start|stop|restart] [profile]
+# Usage: ./local-run.sh [start|stop|restart] [profile]
 #
 # Profiles:
 #   infra      → localstack + redis
@@ -12,9 +12,9 @@
 #   full       → everything
 #
 # Examples:
-#   ./local_demo.sh start
-#   ./local_demo.sh start ui
-#   ./local_demo.sh stop
+#   ./local-run.sh start
+#   ./local-run.sh start ui
+#   ./local-run.sh stop
 
 set -euo pipefail
 

@@ -8,7 +8,7 @@ CloudFormation-based infrastructure and ECS Fargate deployment for all environme
 
 | Env | Trigger | Approval |
 |-----|---------|----------|
-| **local** | `local_demo.sh` / `docker compose` | None |
+| **local** | `/local/local-run.sh` / `make` / `docker compose` | None |
 | **dev** | Push to `main` | None (auto) |
 | **stg** | Dev deploy succeeds | Manual gate in GitHub Actions |
 | **prod** | Manual workflow dispatch | Required reviewer approval |
@@ -81,7 +81,7 @@ count to 0 on dev when idle. Single NAT Gateway (not per-AZ) on non-prod.
 ## Local Schema Reference
 
 DynamoDB table definitions and ElastiCache config for local dev live in
-`apis/localstack/init/`. The CloudFormation templates (`cfn/infra.yaml`)
+`/local/localstack/init/`. The CloudFormation templates (`cfn/infra.yaml`)
 are written to match those definitions exactly — keep them in sync when
 adding or modifying tables.
 

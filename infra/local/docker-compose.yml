@@ -48,11 +48,11 @@ services:
       ENV: local
       SERVICES: secretsmanager,s3,dynamodb,rds
     env_file:
-      - local/localstack/.env
+      - localstack/.env
     volumes:
-      - ./local/localstack/volume:/var/lib/localstack
+      - ./localstack/volume:/var/lib/localstack
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./local/localstack/init:/etc/localstack/init/ready.d
+      - ./localstack/init:/etc/localstack/init/ready.d
     networks:
       - komodo-network
 
@@ -146,7 +146,7 @@ services:
       <<: *aws-local
       APP_NAME: komodo-user-api
       ENV: local
-      PORT: "7051"
+      PORT: ":7051"
       LOG_LEVEL: debug
       EVAL_RULES_PATH: /app/config/validation_rules.yaml
     ports:
@@ -182,7 +182,7 @@ services:
       <<: *aws-local
       APP_NAME: komodo-user-api-internal
       ENV: local
-      INTERNAL_PORT: "7052"
+      INTERNAL_PORT: ":7052"
       LOG_LEVEL: debug
     depends_on:
       user-api-public:
@@ -205,7 +205,7 @@ services:
       <<: *aws-local
       APP_NAME: komodo-shop-items-api
       ENV: local
-      PORT: "7041"
+      PORT: ":7041"
       EVAL_RULES_PATH: /app/config/validation_rules.yml
     ports:
       - "7041:7041"
@@ -297,7 +297,7 @@ services:
       <<: *aws-local
       APP_NAME: komodo-order-api
       ENV: local
-      PORT: "7061"
+      PORT: ":7061"
     ports:
       - "7061:7061"
     extra_hosts:
@@ -329,7 +329,7 @@ services:
       <<: *aws-local
       APP_NAME: komodo-payments-api
       ENV: local
-      PORT: "7071"
+      PORT: ":7071"
     ports:
       - "7071:7071"
     extra_hosts:
@@ -361,7 +361,7 @@ services:
       <<: *aws-local
       APP_NAME: komodo-communications-api
       ENV: local
-      PORT: "7081"
+      PORT: ":7081"
     ports:
       - "7081:7081"
     extra_hosts:
@@ -393,7 +393,7 @@ services:
       <<: *aws-local
       APP_NAME: komodo-search-api
       ENV: local
-      PORT: "7042"
+      PORT: ":7042"
     ports:
       - "7042:7042"
     extra_hosts:
@@ -425,7 +425,7 @@ services:
       <<: *aws-local
       APP_NAME: komodo-reviews-api
       ENV: local
-      PORT: "7092"
+      PORT: ":7092"
     ports:
       - "7092:7092"
     extra_hosts:

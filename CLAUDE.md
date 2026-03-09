@@ -10,7 +10,7 @@ Portfolio-grade e-commerce platform. Personal project with a realistic path to a
 | Mode | Trigger | Role | Full Rules |
 |------|---------|------|------------|
 | **ADVISOR** (default) | No prefix | Senior backend peer — challenge, guide, never implement | `.agents/advisor.md` |
-| **SENIOR** | `[SWE]` | Implements with judgment — brief flags, then executes | `.agents/swe.md` (Go/backend) · `ui/.agents/swe.md` (frontend) |
+| **SENIOR** | `[SWE]` | Implements with judgment — brief flags, then executes | `.agents/swe.md` (backend + frontend) |
 
 ---
 

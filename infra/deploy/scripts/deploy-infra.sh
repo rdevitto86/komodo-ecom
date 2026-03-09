@@ -1,7 +1,7 @@
 #!/bin/bash
 # deploy-infra.sh — Deploy or update the komodo-infra-<env> CloudFormation stack.
-# Usage: ./deploy/scripts/deploy-infra.sh <env>
-# Example: ./deploy/scripts/deploy-infra.sh dev
+# Usage: ./infra/deploy/scripts/deploy-infra.sh <env>
+# Example: ./infra/deploy/scripts/deploy-infra.sh dev
 
 set -euo pipefail
 
@@ -13,7 +13,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CFN_DIR="$REPO_ROOT/deploy/cfn"
+CFN_DIR="$REPO_ROOT/infra/deploy/cfn"
 STACK_NAME="komodo-infra-$ENV"
 
 echo "==> Deploying infra stack: $STACK_NAME"

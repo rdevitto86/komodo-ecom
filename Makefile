@@ -17,29 +17,31 @@ help:
 	@echo "  make ps            show running containers"
 	@echo ""
 
+COMPOSE := docker compose -f infra/local/docker-compose.yml
+
 up-infra:
-	docker compose --profile infra up -d
+	$(COMPOSE) --profile infra up -d
 
 up-auth:
-	docker compose --profile auth up -d --build
+	$(COMPOSE) --profile auth up -d --build
 
 up-backend:
-	docker compose --profile backend up -d --build
+	$(COMPOSE) --profile backend up -d --build
 
 up-ui:
-	docker compose --profile ui-backend up -d --build
+	$(COMPOSE) --profile ui-backend up -d --build
 
 up-full:
-	docker compose --profile full up -d --build
+	$(COMPOSE) --profile full up -d --build
 
 down:
-	docker compose --profile full down --remove-orphans
+	$(COMPOSE) --profile full down --remove-orphans
 
 down-v:
-	docker compose --profile full down --remove-orphans --volumes
+	$(COMPOSE) --profile full down --remove-orphans --volumes
 
 logs:
-	docker compose --profile full logs -f
+	$(COMPOSE) --profile full logs -f
 
 ps:
-	docker compose --profile full ps
+	$(COMPOSE) --profile full ps

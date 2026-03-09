@@ -8,14 +8,13 @@ Production-style e-commerce platform. Independently deployable Go microservices,
 
 ```
 komodo-ecom/
-├── apis/           # Go microservices, SDKs, and localstack infrastructure
-│   ├── komodo-*-api/       # Independent Go services (each has its own go.mod)
+├── apis/           # Go microservices + SDKs
+│   ├── komodo-*-api/        # Independently deployable Go services
 │   ├── komodo-forge-sdk-go/ # Shared internal Go SDK
-│   ├── komodo-forge-sdk-ts/ # Shared internal TypeScript SDK
-│   └── localstack/          # Local AWS emulation (DynamoDB, S3, Secrets Manager, Redis)
-├── ui/             # SvelteKit 5 frontend (SSR, adapter-node)
-├── db/             # DB migrations and seed scripts (planned)
-└── deploy/         # Shared deployment scripts and CloudFormation templates (planned)
+│   └── komodo-forge-sdk-ts/ # Shared internal TypeScript SDK
+├── ui/             # SvelteKit 5 frontend (bun runtime, adapter-static for demo)
+├── localstack/     # Local AWS emulation (DynamoDB, S3, Secrets Manager) + Redis
+└── deploy/         # AWS deployment (CloudFormation, EC2 compose, deploy scripts)
 ```
 
 ## Getting Started
@@ -23,16 +22,20 @@ komodo-ecom/
 **Prerequisites:** Docker >= 24.x, Go 1.26+, Bun 1.2+ (for SvelteKit/TS SDK), Make
 
 ```bash
-# Start local backing services (DynamoDB, S3, Secrets Manager, Redis)
-cd apis/localstack && docker compose up -d
+# Start infra + all backend services + UI (most common)
+make up-ui
 
-# Run a backend service (docker-compose context is apis/)
-cd apis/komodo-<service> && docker compose up --build
+# Or start only what you need
+make up-infra    # localstack + redis only
+make up-auth     # infra + auth-api
+make up-backend  # infra + auth + user + shop-items
 
-# Run the frontend
-cd ui && bun dev
-# or via docker:
-cd ui && docker compose --profile local up --build
+# Stop everything
+make down
+
+# Run the frontend standalone (requires make up-infra first for komodo-network)
+cd ui && bun run dev         # live mode (needs backend running)
+cd ui && bun run dev:mock    # mock mode (no backend needed)
 ```
 
 ---
@@ -49,7 +52,7 @@ cd ui && docker compose --profile local up --build
 | Schema | `docs/openapi.yaml` per service |
 | Tracing | OpenTelemetry OTLP (planned) |
 | Secrets | AWS Secrets Manager via `komodo-forge-sdk-go` at startup |
-| Networking | All services share `komodo-network` (created by `apis/localstack` compose) |
+| Networking | All services share `komodo-network` (created by root `docker-compose.yml`) |
 
 ---
 
@@ -93,7 +96,7 @@ cd ui && docker compose --profile local up --build
 
 ## Infrastructure
 
-LocalStack (`apis/localstack/`) emulates AWS locally:
+LocalStack (`localstack/`) emulates AWS locally:
 
 | Service | Purpose |
 |---------|---------|

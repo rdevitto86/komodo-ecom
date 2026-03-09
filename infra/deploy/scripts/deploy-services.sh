@@ -2,8 +2,8 @@
 # deploy-services.sh — Deploy or update the komodo-services-<env> CloudFormation stack.
 # Requires the komodo-infra-<env> stack to already exist.
 #
-# Usage:   ./deploy/scripts/deploy-services.sh <env> [image-tag]
-# Example: ./deploy/scripts/deploy-services.sh dev abc1234
+# Usage:   ./infra/deploy/scripts/deploy-services.sh <env> [image-tag]
+# Example: ./infra/deploy/scripts/deploy-services.sh dev abc1234
 
 set -euo pipefail
 
@@ -17,7 +17,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CFN_DIR="$REPO_ROOT/deploy/cfn"
+CFN_DIR="$REPO_ROOT/infra/deploy/cfn"
 STACK_NAME="komodo-services-$ENV"
 
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)

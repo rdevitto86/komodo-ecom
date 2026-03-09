@@ -16,16 +16,18 @@ bootstrap:
 
 # ── Local Dev ──────────────────────────────────────────────────────────────
 #
-#   just up              everything enabled in services.jsonc (local)
-#   just up api          api services only (local)
-#   just up ui           ui only (local)
-#   just up api ui       api + ui (local)
-#   just up dev          everything enabled (proxied to AWS dev)
-#   just up api dev      api only (proxied to AWS dev)
+#   just up                    everything enabled in services.jsonc (local)
+#   just up api                api services only (local)
+#   just up ui                 ui only (local)
+#   just up api ui             api + ui (local)
+#   just up dev                everything enabled (proxied to AWS dev)
+#   just up api dev            api only (proxied to AWS dev)
+#   just up order-api          single service by profile name (local)
+#   just up order-api dev      single service (proxied to AWS dev)
 #
-#   Toggle services in: infra/local/services.jsonc
+#   Toggle persistent services in: infra/local/services.jsonc
 
-# Start services — args: any combo of [api] [ui] [support] [dev]
+# Start services — args: any combo of [api] [ui] [support] [dev] or a profile name
 up +args="all":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -36,7 +38,7 @@ up +args="all":
 
     [[ "$ARGS" == *" dev "* ]] && COMPOSE="{{COMPOSE_PROXY}}"
 
-    # Return enabled --profile flags for a given section
+    # Return enabled --profile flags for a given section of services.jsonc
     section_profiles() {
         sed 's|//.*||g' "{{SERVICES_FILE}}" \
             | jq -r ".${1} | to_entries[] | select(.value == true) | .key" \
@@ -52,6 +54,14 @@ up +args="all":
         [[ "$ARGS" == *" ui "*      ]] && PROFILES="$PROFILES $(section_profiles ui)"
         [[ "$ARGS" == *" support "* ]] && PROFILES="$PROFILES $(section_profiles support)"
     fi
+
+    # Any unrecognised arg is treated as a raw profile name
+    for arg in {{args}}; do
+        case "$arg" in
+            all|dev|api|ui|support) ;;
+            *) PROFILES="$PROFILES --profile $arg" ;;
+        esac
+    done
 
     echo "Starting: $PROFILES"
     $COMPOSE $PROFILES up -d --build

@@ -19,8 +19,8 @@ bun run build:demo     # demo build (--mode mock, for S3/CloudFront)
 bun run preview        # preview production build locally
 
 # Via monorepo root (preferred for full-stack work)
-make up-ui             # starts infra + all backend services + ui
-make down              # stop everything
+just up api ui         # starts infra + enabled APIs + ui
+just down              # stop everything
 ```
 
 ## Environment Variables

@@ -94,8 +94,8 @@ User profile, address, payment method, and preference management for the Komodo 
 
 ### Prerequisites
 
-- LocalStack running (provides SM, DynamoDB): `cd ../localstack && docker-compose up -d`
-- LocalStack initialized: init scripts in `../localstack/init/` run automatically
+- LocalStack running (provides SM, DynamoDB): `just up` from repo root
+- LocalStack initialized: init scripts in `infra/local/localstack/init/` run automatically
 
 ### Run (public + internal in separate terminals)
 
@@ -136,19 +136,14 @@ curl -H "Authorization: Bearer $SVC_TOKEN" http://localhost:7052/users/usr_123
 
 ```bash
 # Run all tests
-make test
+go test ./...
 
-# Build + start (Docker, local)
-make bootstrap
+# Start via monorepo (preferred)
+just up api          # starts infra + user-api (if enabled in services.jsonc)
 
-# Build + start for a specific environment
-make bootstrap ENV=dev
-
-# Stop
-make stop ENV=dev
-
-# Restart
-make restart ENV=dev
+# Docker (standalone — requires komodo-network, run just up first)
+cd apis/komodo-user-api
+docker compose up --build
 ```
 
 ---

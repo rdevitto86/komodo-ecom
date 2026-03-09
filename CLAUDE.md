@@ -36,28 +36,31 @@ komodo-ecom/
 │   ├── komodo-*-api/        # Independently deployable Go services
 │   ├── komodo-forge-sdk-go/ # Shared Go SDK (referenced by all Go services)
 │   └── komodo-forge-sdk-ts/ # Shared TypeScript SDK
-├── local/          # Local development infrastructure
-│   └── localstack/          # LocalStack (AWS emulation) + Redis + init scripts
+├── infra/          # All infrastructure config
+│   ├── local/               # Local dev (docker-compose, LocalStack, services.jsonc)
+│   └── deploy/              # AWS deployment (CloudFormation, EC2 compose, scripts)
 ├── ui/             # SvelteKit 5 frontend (bun runtime)
-└── deploy/         # AWS deployment (CloudFormation, EC2 compose, scripts)
+├── Brewfile        # Repo toolchain (just, jq, go, bun, gh, docker)
+└── Justfile        # Local dev task runner
 ```
 
-> **Docker build context:** All Go service `docker-compose.yaml` files use `context: ..` (the `apis/` directory) so the SDK can be `COPY`'d alongside the service. Run `docker compose` from inside `apis/<service>/` for standalone use.
+> **Docker build context:** All Go service `docker-compose.yaml` files use `context: ../..` (repo root) so the SDK can be `COPY`'d alongside the service. Run `docker compose` from inside `apis/<service>/` for standalone use.
 
 ## Local Dev Orchestration
 
-Root `docker-compose.yml` with profiles replaces per-service startup. Use `make`:
+`infra/local/docker-compose.yml` with profiles, driven by `just`. Toggle services in `infra/local/services.jsonc`.
 
-| Command | Profile | Services started |
-|---------|---------|-----------------|
-| `make up-infra` | `infra` | localstack + redis |
-| `make up-auth` | `auth` | infra + auth-api |
-| `make up-backend` | `backend` | infra + auth + user + shop-items |
-| `make up-ui` | `ui-backend` | backend + ui |
-| `make up-full` | `full` | everything |
-| `make down` | — | stop all |
+| Command | Services started |
+|---------|-----------------|
+| `just up` | localstack + redis + auth-api (always) |
+| `just up api` | + APIs enabled in `services.jsonc` |
+| `just up ui` | + UI enabled in `services.jsonc` |
+| `just up api ui` | + APIs + UI |
+| `just up api ui support` | everything enabled in `services.jsonc` |
+| `just up api dev` | APIs, routed to AWS dev endpoints |
+| `just down` | stop all |
 
-Individual service composes (`apis/<service>/docker-compose.yaml`) still work standalone — they reference `komodo-network` as external, so run `make up-infra` first to create the network.
+Individual service composes (`apis/<service>/docker-compose.yaml`) still work standalone — they reference `komodo-network` as external, so run `just up` first to create the network.
 
 ---
 
@@ -120,7 +123,7 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 | `core-features-api` | Lambda | TODO: add Lambda handler |
 | `core-entitlements-api` | Lambda | TODO: add Lambda handler |
 
-**Scale-up path:** `deploy/cfn/` templates are ready. When EC2 hits its ceiling, run `deploy-infra.sh` + `deploy-services.sh` to migrate to ECS Fargate. No code changes required.
+**Scale-up path:** `infra/deploy/cfn/` templates are ready. When EC2 hits its ceiling, run `deploy-infra.sh` + `deploy-services.sh` to migrate to ECS Fargate. No code changes required.
 
 **GitHub Actions:** All workflow auto-triggers are disabled (manual `workflow_dispatch` only). Re-enable when backend is live — uncomment the `on:` blocks in `ci.yml` and `deploy-dev.yml`.
 

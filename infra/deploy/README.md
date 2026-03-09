@@ -8,7 +8,7 @@ CloudFormation-based infrastructure and ECS Fargate deployment for all environme
 
 | Env | Trigger | Approval |
 |-----|---------|----------|
-| **local** | `/local/local-run.sh` / `make` / `docker compose` | None |
+| **local** | `just up` | None |
 | **dev** | Push to `main` | None (auto) |
 | **stg** | Dev deploy succeeds | Manual gate in GitHub Actions |
 | **prod** | Manual workflow dispatch | Required reviewer approval |
@@ -81,7 +81,7 @@ count to 0 on dev when idle. Single NAT Gateway (not per-AZ) on non-prod.
 ## Local Schema Reference
 
 DynamoDB table definitions and ElastiCache config for local dev live in
-`/local/localstack/init/`. The CloudFormation templates (`cfn/infra.yaml`)
+`infra/local/localstack/init/`. The CloudFormation templates (`cfn/infra.yaml`)
 are written to match those definitions exactly — keep them in sync when
 adding or modifying tables.
 
@@ -101,12 +101,12 @@ Always deploy infra before services on first run or when infra changes:
 
 ```bash
 # 1. Deploy shared infrastructure
-./scripts/deploy-infra.sh dev
+./infra/deploy/scripts/deploy-infra.sh dev
 
 # 2. Build + push Docker images to ECR (done by CI)
 
 # 3. Deploy ECS services
-./scripts/deploy-services.sh dev
+./infra/deploy/scripts/deploy-services.sh dev
 ```
 
 ---

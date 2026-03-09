@@ -8,32 +8,38 @@ Production-style e-commerce platform. Independently deployable Go microservices,
 
 ```
 komodo-ecom/
-├── apis/           # Go microservices + SDKs
-│   ├── komodo-*-api/        # Independently deployable Go services
-│   ├── komodo-forge-sdk-go/ # Shared internal Go SDK
-│   └── komodo-forge-sdk-ts/ # Shared internal TypeScript SDK
-├── ui/             # SvelteKit 5 frontend (bun runtime, adapter-static for demo)
-├── localstack/     # Local AWS emulation (DynamoDB, S3, Secrets Manager) + Redis
-└── deploy/         # AWS deployment (CloudFormation, EC2 compose, deploy scripts)
+├── apis/                     # Go microservices + SDKs
+│   ├── komodo-*-api/         # Independently deployable Go services
+│   ├── komodo-forge-sdk-go/  # Shared internal Go SDK
+│   └── komodo-forge-sdk-ts/  # Shared internal TypeScript SDK
+├── ui/                       # SvelteKit 5 frontend (bun runtime, adapter-static for demo)
+├── infra/                    # Local AWS emulation (DynamoDB, S3, Secrets Manager) + Redis
+│   ├── deploy/               # AWS deployment (CloudFormation, EC2 compose, deploy scripts)
+│   └── local/                # Local development setup (including LocalStack)
 ```
 
 ## Getting Started
 
-**Prerequisites:** Docker >= 24.x, Go 1.26+, Bun 1.2+ (for SvelteKit/TS SDK), Make
+**Prerequisites:** [Homebrew](https://brew.sh), Docker >= 24.x
 
 ```bash
-# Start infra + all backend services + UI (most common)
-make up-ui
+# 1. Install Homebrew (if not already installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# Or start only what you need
-make up-infra    # localstack + redis only
-make up-auth     # infra + auth-api
-make up-backend  # infra + auth + user + shop-items
+# 2. Install just, then bootstrap everything else
+brew install just
+just bootstrap
+
+# 3. Start services (toggle what's enabled in infra/local/services.jsonc)
+just up              # infra only (localstack + redis + auth-api)
+just up api          # + enabled APIs
+just up api ui       # + enabled APIs + UI
+just up api ui dev   # same, but routed to AWS dev endpoints
 
 # Stop everything
-make down
+just down
 
-# Run the frontend standalone (requires make up-infra first for komodo-network)
+# Run the frontend standalone (infra must be running for komodo-network)
 cd ui && bun run dev         # live mode (needs backend running)
 cd ui && bun run dev:mock    # mock mode (no backend needed)
 ```
@@ -52,7 +58,7 @@ cd ui && bun run dev:mock    # mock mode (no backend needed)
 | Schema | `docs/openapi.yaml` per service |
 | Tracing | OpenTelemetry OTLP (planned) |
 | Secrets | AWS Secrets Manager via `komodo-forge-sdk-go` at startup |
-| Networking | All services share `komodo-network` (created by root `docker-compose.yml`) |
+| Networking | All services share `komodo-network` (created by `infra/local/docker-compose.yml`) |
 
 ---
 
@@ -96,7 +102,7 @@ cd ui && bun run dev:mock    # mock mode (no backend needed)
 
 ## Infrastructure
 
-LocalStack (`localstack/`) emulates AWS locally:
+LocalStack (`infra/local/localstack/`) emulates AWS locally:
 
 | Service | Purpose |
 |---------|---------|
@@ -106,4 +112,4 @@ LocalStack (`localstack/`) emulates AWS locally:
 | RDS | Aurora-compatible relational DB (planned) |
 | Redis | Sessions and caching (standalone container, port 6379) |
 
-Init scripts in `localstack/init/` seed all services on startup.
+Init scripts in `infra/local/localstack/init/` seed all services on startup.

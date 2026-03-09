@@ -39,7 +39,7 @@ Address validation, normalization, and geocoding for the Komodo platform.
 
 ### Prerequisites
 
-- LocalStack running: `cd ../localstack && docker compose up -d`
+- LocalStack running: `just up` from repo root
 
 ### Run
 

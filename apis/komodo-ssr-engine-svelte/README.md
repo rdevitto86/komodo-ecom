@@ -59,7 +59,7 @@ The `ui` shell requests pre-rendered fragments from this service and injects the
 ### Prerequisites
 
 - Bun 1.2+
-- LocalStack running: `cd ../localstack && docker compose up -d`
+- LocalStack running: `just up` from repo root
 
 ### Run
 

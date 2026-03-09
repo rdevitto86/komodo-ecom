@@ -83,7 +83,7 @@ s3://<S3_ITEMS_BUCKET>/
 
 ### Prerequisites
 
-- LocalStack running: `cd ../localstack && docker compose up -d`
+- LocalStack running: `just up` from repo root
 
 ### Run
 

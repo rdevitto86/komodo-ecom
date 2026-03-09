@@ -42,7 +42,7 @@ Agent profiles live at the monorepo root in `.agents/`. See root `CLAUDE.md` for
 | Target | Adapter | Script | Deploy |
 |--------|---------|--------|--------|
 | Demo (S3 + CloudFront) | `adapter-static` | `bun run build:demo` | Static files → S3 |
-| Local dev (Docker) | — (dev server) | `bun run dev` | `make up-ui` |
+| Local dev (Docker) | — (dev server) | `bun run dev` | `just up api ui` |
 | Real backend (EC2/ECS) | `adapter-node` | `bun run build` | EC2 docker-compose |
 
 `build:demo` uses `--mode mock` → reads `.env.mock` → disables real API calls and uses mock data.
@@ -50,10 +50,10 @@ Agent profiles live at the monorepo root in `.agents/`. See root `CLAUDE.md` for
 ## Local Dev
 Run from monorepo root:
 ```
-make up-ui     # starts: localstack + redis + auth-api + user-api + shop-items-api + ui
-make down      # stop all
+just up api ui   # starts: localstack + redis + auth-api + enabled APIs + ui
+just down        # stop all
 ```
-Or standalone (requires `make up-infra` first for `komodo-network`):
+Or standalone (requires `just up` first for `komodo-network`):
 ```
 cd ui && bun run dev        # http://localhost:7001
 cd ui && bun run dev:mock   # mock mode (no backend needed)

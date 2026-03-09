@@ -68,8 +68,8 @@ OAuth 2.0 authorization server for the Komodo platform. Issues and validates RS2
 
 ### Prerequisites
 
-- LocalStack running (provides SM, Redis): `cd ../localstack && docker-compose up -d`
-- LocalStack initialized: init scripts in `../localstack/init/` run automatically on first start
+- LocalStack running (provides SM, Redis): `just up` from repo root
+- LocalStack initialized: init scripts in `infra/local/localstack/init/` run automatically on first start
 
 ### Run
 

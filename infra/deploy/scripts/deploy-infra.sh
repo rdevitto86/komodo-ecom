@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # deploy-infra.sh — Deploy or update the komodo-infra-<env> CloudFormation stack.
 # Usage: ./infra/deploy/scripts/deploy-infra.sh <env>
 # Example: ./infra/deploy/scripts/deploy-infra.sh dev

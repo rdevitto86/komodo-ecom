@@ -1,0 +1,36 @@
+# Proxy mode — bypasses LocalStack, routes AWS SDK calls to real AWS dev endpoints.
+# Applied automatically when PROXY=1 is passed to make up.
+# Requires valid AWS credentials on the host (~/.aws/credentials or env vars).
+
+services:
+  auth-api-public:
+    environment:
+      AWS_ENDPOINT: ""
+
+  user-api-public:
+    environment:
+      AWS_ENDPOINT: ""
+
+  shop-items-api:
+    environment:
+      AWS_ENDPOINT: ""
+
+  order-api:
+    environment:
+      AWS_ENDPOINT: ""
+
+  payments-api:
+    environment:
+      AWS_ENDPOINT: ""
+
+  communications-api:
+    environment:
+      AWS_ENDPOINT: ""
+
+  search-api:
+    environment:
+      AWS_ENDPOINT: ""
+
+  reviews-api:
+    environment:
+      AWS_ENDPOINT: ""

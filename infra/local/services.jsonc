@@ -1,0 +1,19 @@
+{
+  // infra (localstack, redis, auth-api) always starts — not listed here
+
+  "api": {
+    "user-api": true,
+    "shop-items": true,
+    "order-api": false,
+    "payments-api": false,
+    "communications-api": false,
+    "search-api": false,
+    "reviews-api": false
+  },
+  "ui": {
+    "ui": true
+  },
+  "support": {
+    "ssr-engine": false
+  }
+}

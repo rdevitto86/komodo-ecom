@@ -2,20 +2,23 @@ name: komodo-local
 
 # ── Profile guide ──────────────────────────────────────────────────────────
 #
-#   infra       → localstack + redis                    (AWS emulation only)
-#   auth        → infra + auth-api                      (auth/token work)
-#   backend     → infra + auth-api + user-api + shop-items-api
-#   ui-backend  → backend + ui                          (full local E2E dev)
-#   full        → everything                            (all services)
+#   Group profiles (for ad-hoc use):
+#     infra   → localstack + redis + auth-api   (always starts via make up)
+#     api     → all backend API services
+#     ui      → ui
+#     support → ssr-engine + future tooling
 #
-# Usage (see Makefile for shortcuts):
-#   docker compose --profile backend up -d --build
-#   docker compose --profile ui-backend up -d --build
-#   docker compose --profile full down --remove-orphans
+#   Per-service profiles (driven by infra/local/services.txt):
+#     auth-api, user-api, shop-items, order-api, payments-api,
+#     communications-api, search-api, reviews-api, ui, ssr-engine
 #
-# Individual service compose files (apis/<service>/docker-compose.yaml) still
-# work standalone — they reference komodo-network as external, so start infra
-# first or use this file's profiles instead.
+# Usage:
+#   make up                            # infra only
+#   make up API=1                      # infra + enabled APIs
+#   make up API=1 UI=1                 # infra + enabled APIs + ui
+#   make up API=1 PROXY=1              # route AWS calls to real dev endpoints
+#   make up API=1 UI=1 SUPPORT=1       # everything enabled in services.txt
+#
 # ──────────────────────────────────────────────────────────────────────────
 
 networks:
@@ -23,7 +26,7 @@ networks:
     name: komodo-network
     driver: bridge
 
-# Shared AWS env block — all Go services pull secrets from LocalStack SM.
+# Shared AWS env blocks
 x-aws-local: &aws-local
   AWS_REGION: us-east-1
   AWS_ENDPOINT: http://localstack:4566
@@ -32,10 +35,10 @@ x-aws-local: &aws-local
 
 services:
 
-  # ── Infra ─────────────────────────────────────────────────────────────────
+  # ── Infra (always starts) ──────────────────────────────────────────────
 
   localstack:
-    profiles: [infra, auth, backend, ui-backend, full]
+    profiles: [infra]
     container_name: localstack-main
     image: localstack/localstack
     ports:
@@ -57,7 +60,7 @@ services:
       - komodo-network
 
   redis:
-    profiles: [infra, auth, backend, ui-backend, full]
+    profiles: [infra]
     container_name: komodo-redis
     image: redis:7-alpine
     ports:
@@ -66,13 +69,13 @@ services:
     networks:
       - komodo-network
 
-  # ── Auth API — 7011 public · 7012 internal ────────────────────────────────
+  # ── Auth API — 7011 public · 7012 internal (always starts) ────────────
 
   auth-api-public:
-    profiles: [auth, backend, ui-backend, full]
+    profiles: [infra, auth-api]
     build:
-      context: ./apis
-      dockerfile: komodo-auth-api/Dockerfile
+      context: ../..
+      dockerfile: apis/komodo-auth-api/Dockerfile
       args:
         BUILD_TARGET: public
         DISTROLESS_TAG: debug
@@ -105,10 +108,10 @@ services:
       - komodo-network
 
   auth-api-internal:
-    profiles: [auth, backend, ui-backend, full]
+    profiles: [infra, auth-api]
     build:
-      context: ./apis
-      dockerfile: komodo-auth-api/Dockerfile
+      context: ../..
+      dockerfile: apis/komodo-auth-api/Dockerfile
       args:
         BUILD_TARGET: internal
         DISTROLESS_TAG: debug
@@ -127,13 +130,13 @@ services:
         condition: service_healthy
     network_mode: "service:auth-api-public"
 
-  # ── User API — 7051 public · 7052 internal ────────────────────────────────
+  # ── User API — 7051 public · 7052 internal ────────────────────────────
 
   user-api-public:
-    profiles: [backend, ui-backend, full]
+    profiles: [api, user-api]
     build:
-      context: ./apis
-      dockerfile: komodo-user-api/Dockerfile
+      context: ../..
+      dockerfile: apis/komodo-user-api/Dockerfile
       args:
         BUILD_TARGET: public
         DISTROLESS_TAG: debug
@@ -166,10 +169,10 @@ services:
       - komodo-network
 
   user-api-internal:
-    profiles: [backend, ui-backend, full]
+    profiles: [api, user-api]
     build:
-      context: ./apis
-      dockerfile: komodo-user-api/Dockerfile
+      context: ../..
+      dockerfile: apis/komodo-user-api/Dockerfile
       args:
         BUILD_TARGET: internal
         DISTROLESS_TAG: debug
@@ -189,13 +192,13 @@ services:
         condition: service_healthy
     network_mode: "service:user-api-public"
 
-  # ── Shop Items API — 7041 ──────────────────────────────────────────────────
+  # ── Shop Items API — 7041 ─────────────────────────────────────────────
 
   shop-items-api:
-    profiles: [backend, ui-backend, full]
+    profiles: [api, shop-items]
     build:
-      context: ./apis
-      dockerfile: komodo-shop-items-api/Dockerfile
+      context: ../..
+      dockerfile: apis/komodo-shop-items-api/Dockerfile
     restart: "no"
     deploy:
       resources:
@@ -222,72 +225,13 @@ services:
     networks:
       - komodo-network
 
-  # ── UI — 7001 (hot-reload dev build) ──────────────────────────────────────
-
-  ui:
-    profiles: [ui-backend, full]
-    build:
-      context: ./ui
-      target: dev
-    restart: "no"
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    environment:
-      ENV: local
-      PORT: "7001"
-      LOG_LEVEL: debug
-    ports:
-      - "7001:7001"
-    volumes:
-      - ./ui:/app
-      - /app/node_modules
-    depends_on:
-      auth-api-public:
-        condition: service_healthy
-    networks:
-      - komodo-network
-
-  # ── SSR Engine — 7003 ─────────────────────────────────────────────────────
-
-  ssr-engine:
-    profiles: [full]
-    build:
-      context: ./apis
-      dockerfile: komodo-ssr-engine-svelte/Dockerfile
-    restart: "no"
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    environment:
-      PORT: "7003"
-      NODE_ENV: development
-      AWS_REGION: us-east-1
-      AWS_ENDPOINT: http://localstack:4566
-      S3_CONTENT_BUCKET: komodo-static-assets-dev
-      CLOUDFRONT_DISTRIBUTION_ID: ""
-    ports:
-      - "7003:7003"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    healthcheck:
-      test: ["CMD", "bun", "-e", "fetch('http://localhost:7003/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 40s
-    networks:
-      - komodo-network
-
-  # ── Order API — 7061 ──────────────────────────────────────────────────────
+  # ── Order API — 7061 ──────────────────────────────────────────────────
 
   order-api:
-    profiles: [full]
+    profiles: [api, order-api]
     build:
-      context: ./apis
-      dockerfile: komodo-order-api/Dockerfile
+      context: ../..
+      dockerfile: apis/komodo-order-api/Dockerfile
     restart: "no"
     deploy:
       resources:
@@ -313,13 +257,13 @@ services:
     networks:
       - komodo-network
 
-  # ── Payments API — 7071 ───────────────────────────────────────────────────
+  # ── Payments API — 7071 ───────────────────────────────────────────────
 
   payments-api:
-    profiles: [full]
+    profiles: [api, payments-api]
     build:
-      context: ./apis
-      dockerfile: komodo-payments-api/Dockerfile
+      context: ../..
+      dockerfile: apis/komodo-payments-api/Dockerfile
     restart: "no"
     deploy:
       resources:
@@ -345,13 +289,13 @@ services:
     networks:
       - komodo-network
 
-  # ── Communications API — 7081 ─────────────────────────────────────────────
+  # ── Communications API — 7081 ─────────────────────────────────────────
 
   communications-api:
-    profiles: [full]
+    profiles: [api, communications-api]
     build:
-      context: ./apis
-      dockerfile: komodo-communications-api/Dockerfile
+      context: ../..
+      dockerfile: apis/komodo-communications-api/Dockerfile
     restart: "no"
     deploy:
       resources:
@@ -377,13 +321,13 @@ services:
     networks:
       - komodo-network
 
-  # ── Search API — 7042 ─────────────────────────────────────────────────────
+  # ── Search API — 7042 ─────────────────────────────────────────────────
 
   search-api:
-    profiles: [full]
+    profiles: [api, search-api]
     build:
-      context: ./apis
-      dockerfile: komodo-search-api/Dockerfile
+      context: ../..
+      dockerfile: apis/komodo-search-api/Dockerfile
     restart: "no"
     deploy:
       resources:
@@ -409,13 +353,13 @@ services:
     networks:
       - komodo-network
 
-  # ── Reviews API — 7092 ────────────────────────────────────────────────────
+  # ── Reviews API — 7092 ────────────────────────────────────────────────
 
   reviews-api:
-    profiles: [full]
+    profiles: [api, reviews-api]
     build:
-      context: ./apis
-      dockerfile: komodo-reviews-api/Dockerfile
+      context: ../..
+      dockerfile: apis/komodo-reviews-api/Dockerfile
     restart: "no"
     deploy:
       resources:
@@ -438,5 +382,64 @@ services:
       start_period: 40s
     depends_on:
       - localstack
+    networks:
+      - komodo-network
+
+  # ── UI — 7001 ─────────────────────────────────────────────────────────
+
+  ui:
+    profiles: [ui]
+    build:
+      context: ../../ui
+      target: dev
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    environment:
+      ENV: local
+      PORT: "7001"
+      LOG_LEVEL: debug
+    ports:
+      - "7001:7001"
+    volumes:
+      - ../../ui:/app
+      - /app/node_modules
+    depends_on:
+      auth-api-public:
+        condition: service_healthy
+    networks:
+      - komodo-network
+
+  # ── SSR Engine — 7003 ─────────────────────────────────────────────────
+
+  ssr-engine:
+    profiles: [support, ssr-engine]
+    build:
+      context: ../..
+      dockerfile: apis/komodo-ssr-engine-svelte/Dockerfile
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    environment:
+      PORT: "7003"
+      NODE_ENV: development
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT: http://localstack:4566
+      S3_CONTENT_BUCKET: komodo-static-assets-dev
+      CLOUDFRONT_DISTRIBUTION_ID: ""
+    ports:
+      - "7003:7003"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:7003/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     networks:
       - komodo-network

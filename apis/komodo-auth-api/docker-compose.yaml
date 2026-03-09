@@ -1,0 +1,73 @@
+name: komodo-auth-api
+
+services:
+  auth-api-public:
+    image: ${APP_NAME}-public:${VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: komodo-auth-api/Dockerfile
+      args:
+        BUILD_TARGET: public
+        DISTROLESS_TAG: ${DISTROLESS_TAG:-debug}
+    restart: ${RESTART_POLICY:-no}
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_LIMIT:-512M}
+    environment:
+      APP_NAME: ${APP_NAME}
+      ENV: ${ENV}
+      PORT: :7011
+      INTERNAL_PORT: :7012
+      VERSION: ${VERSION}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ENDPOINT: ${AWS_ENDPOINT}
+      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
+      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH}
+      EVAL_RULES_PATH: /app/config/validation_rules.yml
+    ports:
+      - "7011:7011"
+      - "7012:7012"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7011/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - komodo-network
+
+  auth-api-internal:
+    image: ${APP_NAME}-internal:${VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: komodo-auth-api/Dockerfile
+      args:
+        BUILD_TARGET: internal
+        DISTROLESS_TAG: ${DISTROLESS_TAG:-debug}
+    restart: ${RESTART_POLICY:-no}
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_LIMIT:-512M}
+    environment:
+      APP_NAME: ${APP_NAME}
+      ENV: ${ENV}
+      INTERNAL_PORT: :7012
+      VERSION: ${VERSION}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ENDPOINT: ${AWS_ENDPOINT}
+      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
+      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH}
+    depends_on:
+      auth-api-public:
+        condition: service_healthy
+    # Shares the public container's network namespace — both ports are on one
+    # Fargate task / local Docker bridge without a second NIC or VIP.
+    network_mode: "service:auth-api-public"
+
+networks:
+  komodo-network:
+    external: true

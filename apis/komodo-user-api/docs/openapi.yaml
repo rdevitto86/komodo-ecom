@@ -1,0 +1,669 @@
+openapi: "3.1.0"
+
+info:
+  title: Komodo User API
+  version: "0.1.0"
+  description: |
+    User profile, address, payment method, and preference management.
+
+    **Auth:** All `/me/*` routes require a user-scoped JWT (`Authorization: Bearer <token>`).
+    Internal `/users/{id}/*` routes require a service-scoped JWT (`svc:` prefix claim).
+
+servers:
+  - url: http://localhost:7051
+    description: Public (local)
+  - url: http://localhost:7052
+    description: Internal (local)
+
+tags:
+  - name: Health
+  - name: Profile
+  - name: Addresses
+  - name: Payments
+  - name: Preferences
+  - name: Internal
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+paths:
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      operationId: healthCheck
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+
+  # ── Profile ──────────────────────────────────────────────────────────────
+
+  /me/profile:
+    get:
+      tags: [Profile]
+      summary: Get authenticated user's profile
+      operationId: getProfile
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    post:
+      tags: [Profile]
+      summary: Create user record (called on registration)
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+    put:
+      tags: [Profile]
+      summary: Update authenticated user's profile
+      operationId: updateProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Profile]
+      summary: Delete authenticated user's account
+      operationId: deleteProfile
+      responses:
+        "204":
+          description: Account deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Addresses ────────────────────────────────────────────────────────────
+
+  /me/addresses:
+    get:
+      tags: [Addresses]
+      summary: List all addresses for the authenticated user
+      operationId: getAddresses
+      responses:
+        "200":
+          description: Address list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Address"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [Addresses]
+      summary: Add a new address
+      operationId: addAddress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddressInput"
+      responses:
+        "201":
+          description: Address created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Address"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/addresses/{id}:
+    parameters:
+      - $ref: "#/components/parameters/AddressID"
+
+    put:
+      tags: [Addresses]
+      summary: Update an address
+      operationId: updateAddress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddressInput"
+      responses:
+        "200":
+          description: Updated address
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Address"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Addresses]
+      summary: Delete an address
+      operationId: deleteAddress
+      responses:
+        "204":
+          description: Address deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Payments ─────────────────────────────────────────────────────────────
+
+  /me/payments:
+    get:
+      tags: [Payments]
+      summary: List saved payment methods
+      operationId: getPayments
+      responses:
+        "200":
+          description: Payment method list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentMethod"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    put:
+      tags: [Payments]
+      summary: Add or update a payment method
+      operationId: upsertPayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentMethodInput"
+      responses:
+        "200":
+          description: Payment method saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/payments/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PaymentID"
+
+    delete:
+      tags: [Payments]
+      summary: Remove a payment method
+      operationId: deletePayment
+      responses:
+        "204":
+          description: Payment method removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Preferences ──────────────────────────────────────────────────────────
+
+  /me/preferences:
+    get:
+      tags: [Preferences]
+      summary: Get user preferences
+      operationId: getPreferences
+      responses:
+        "200":
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preferences"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Preferences]
+      summary: Update user preferences
+      operationId: updatePreferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Preferences"
+      responses:
+        "200":
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preferences"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    delete:
+      tags: [Preferences]
+      summary: Delete user preferences
+      operationId: deletePreferences
+      responses:
+        "204":
+          description: Preferences deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Internal ─────────────────────────────────────────────────────────────
+
+  /users/{id}:
+    parameters:
+      - $ref: "#/components/parameters/UserID"
+    get:
+      tags: [Internal]
+      summary: Get profile by user ID (service-to-service)
+      operationId: internalGetUser
+      security:
+        - ServiceJWT: []
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users/{id}/addresses:
+    parameters:
+      - $ref: "#/components/parameters/UserID"
+    get:
+      tags: [Internal]
+      summary: Get addresses for a user (service-to-service)
+      operationId: internalGetUserAddresses
+      security:
+        - ServiceJWT: []
+      responses:
+        "200":
+          description: Address list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Address"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /users/{id}/preferences:
+    parameters:
+      - $ref: "#/components/parameters/UserID"
+    get:
+      tags: [Internal]
+      summary: Get preferences for a user (service-to-service)
+      operationId: internalGetUserPreferences
+      security:
+        - ServiceJWT: []
+      responses:
+        "200":
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preferences"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /users/{id}/payments:
+    parameters:
+      - $ref: "#/components/parameters/UserID"
+    get:
+      tags: [Internal]
+      summary: Get payment methods for a user (service-to-service)
+      operationId: internalGetUserPayments
+      security:
+        - ServiceJWT: []
+      responses:
+        "200":
+          description: Payment method list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentMethod"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+# ---------------------------------------------------------------------------
+# Components
+# ---------------------------------------------------------------------------
+components:
+
+  securitySchemes:
+    UserJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: User-scoped RS256 JWT issued by komodo-auth-api
+    ServiceJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Service-scoped RS256 JWT; must carry at least one `svc:` claim
+
+  parameters:
+    UserID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: User ID
+    AddressID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Address ID
+    PaymentID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Payment method ID
+
+  schemas:
+    User:
+      type: object
+      required: [user_id, username, email, first_name, last_name, created_at, updated_at]
+      properties:
+        user_id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        first_name:
+          type: string
+        middle_initial:
+          type: string
+          maxLength: 1
+        last_name:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+
+    CreateUserRequest:
+      type: object
+      required: [username, email, first_name, last_name]
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        first_name:
+          type: string
+        middle_initial:
+          type: string
+          maxLength: 1
+        last_name:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        phone:
+          type: string
+        first_name:
+          type: string
+        middle_initial:
+          type: string
+          maxLength: 1
+        last_name:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+
+    Address:
+      type: object
+      required: [address_id, line1, city, state, zip_code, country, is_default]
+      properties:
+        address_id:
+          type: string
+        alias:
+          type: string
+          description: Friendly label (e.g. "Home", "Work")
+        line1:
+          type: string
+        line2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zip_code:
+          type: string
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2 country code (e.g. "US")
+        is_default:
+          type: boolean
+
+    AddressInput:
+      type: object
+      required: [line1, city, state, zip_code, country]
+      properties:
+        alias:
+          type: string
+        line1:
+          type: string
+        line2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zip_code:
+          type: string
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2 country code (e.g. "US")
+        is_default:
+          type: boolean
+
+    Preferences:
+      type: object
+      properties:
+        language:
+          type: string
+          description: BCP 47 language tag (e.g. "en-US")
+        timezone:
+          type: string
+          description: IANA timezone (e.g. "America/New_York")
+        communication:
+          type: object
+          description: Notification channel opt-ins keyed by channel name (e.g. email, sms, push)
+          additionalProperties:
+            type: boolean
+        marketing:
+          type: object
+          description: Marketing preferences keyed by attribute (e.g. frequency, channel)
+          additionalProperties:
+            type: string
+
+    PaymentMethod:
+      type: object
+      description: Stored payment method reference — no raw card data, metadata only
+      required: [payment_id, provider, last4, brand, expiry_month, expiry_year, is_default]
+      properties:
+        payment_id:
+          type: string
+        provider:
+          type: string
+          description: Payment processor (e.g. "stripe")
+        last4:
+          type: string
+          description: Last 4 digits of the card number
+        brand:
+          type: string
+          description: Card network (e.g. "visa", "mastercard", "amex")
+        expiry_month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        expiry_year:
+          type: integer
+        is_default:
+          type: boolean
+
+    PaymentMethodInput:
+      type: object
+      description: Payment processor token submitted by the client to save a payment method
+      required: [provider, token]
+      properties:
+        provider:
+          type: string
+          description: Payment processor (e.g. "stripe")
+        token:
+          type: string
+          description: Payment processor token (e.g. Stripe payment method ID "pm_xxx")
+        is_default:
+          type: boolean
+
+    ProblemDetail:
+      type: object
+      description: RFC 7807 Problem+JSON error body
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+    Forbidden:
+      description: JWT present but insufficient scope
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+    Conflict:
+      description: Resource already exists
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+
+security:
+  - UserJWT: []

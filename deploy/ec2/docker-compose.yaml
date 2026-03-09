@@ -1,0 +1,121 @@
+name: komodo-ec2
+
+# EC2 production compose — pulls pre-built images from ECR.
+# Only the services that need dual-port listeners or guaranteed uptime
+# run here. Everything else is Lambda (see deploy/README.md).
+#
+# Usage:
+#   export ECR_URI=<account>.dkr.ecr.us-east-1.amazonaws.com
+#   export IMAGE_TAG=<git-sha>
+#   docker compose -f deploy/ec2/docker-compose.yaml --env-file deploy/ec2/.env up -d
+#
+# First run on a fresh EC2: run deploy/ec2/setup.sh first.
+
+services:
+
+  # ── Reverse proxy ──────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    depends_on:
+      - auth-api
+      - user-api
+      - shop-items-api
+    networks:
+      - komodo-ec2
+
+  # ── Auth API (7011 public · 7012 internal) ────────────────────────────
+  auth-api:
+    image: ${ECR_URI}/komodo-auth-api:${IMAGE_TAG:-latest}
+    restart: always
+    expose:
+      - "7011"    # public — routed via nginx
+      - "7012"    # internal — reachable by sibling containers only
+    environment:
+      APP_NAME: komodo-auth-api
+      ENV: ${ENV:-prod}
+      PORT: 7011
+      INTERNAL_PORT: 7012
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
+      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH:-true}
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7011/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - komodo-ec2
+
+  # ── User API (7051 public · 7052 internal) ────────────────────────────
+  user-api:
+    image: ${ECR_URI}/komodo-user-api:${IMAGE_TAG:-latest}
+    restart: always
+    expose:
+      - "7051"    # public
+      - "7052"    # internal
+    environment:
+      APP_NAME: komodo-user-api
+      ENV: ${ENV:-prod}
+      PORT: 7051
+      INTERNAL_PORT: 7052
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
+      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH:-true}
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7051/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - komodo-ec2
+
+  # ── Shop Items API (7041 public · 7042 internal) ──────────────────────
+  shop-items-api:
+    image: ${ECR_URI}/komodo-shop-items-api:${IMAGE_TAG:-latest}
+    restart: always
+    expose:
+      - "7041"    # public
+      - "7042"    # internal
+    environment:
+      APP_NAME: komodo-shop-items-api
+      ENV: ${ENV:-prod}
+      PORT: 7041
+      INTERNAL_PORT: 7042
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
+      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH:-true}
+      EVAL_RULES_PATH: /app/config/validation_rules.yml
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7041/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - komodo-ec2
+
+networks:
+  komodo-ec2:
+    driver: bridge

@@ -1,89 +1,60 @@
 #!/bin/bash
+# local_demo.sh — thin wrapper around the root docker-compose profiles.
+# Prefer using `make` directly. See Makefile for all available targets.
+#
+# Usage: ./local_demo.sh [start|stop|restart] [profile]
+#
+# Profiles:
+#   infra      → localstack + redis
+#   auth       → infra + auth-api
+#   backend    → infra + auth + user + shop-items  (default)
+#   ui         → backend + ui
+#   full       → everything
+#
+# Examples:
+#   ./local_demo.sh start
+#   ./local_demo.sh start ui
+#   ./local_demo.sh stop
 
-set -e  # Exit immediately if a command exits with a non-zero status
-set -u  # Treat unset variables as an error
+set -euo pipefail
 
-# Variables
-AUTH_API_IMAGE="local/komodo-auth-api:latest"
-AUTH_API_CONTAINER="komodo-auth-api"
-AUTH_API_PORT=7001
-AUTH_API_URL="http://localhost:$AUTH_API_PORT"
+PROFILE="${2:-backend}"
 
-ADDRESS_API_IMAGE="local/komodo-address-api:latest"
-ADDRESS_API_CONTAINER="komodo-address-api"
-ADDRESS_API_PORT=7010
+# Map friendly names to compose profile names
+case "$PROFILE" in
+  ui)      COMPOSE_PROFILE="ui-backend" ;;
+  *)       COMPOSE_PROFILE="$PROFILE" ;;
+esac
 
-# Functions
-function start_api() {
-  local image=$1
-  local container=$2
-  local port=$3
-  local env_vars=$4
+function start_stack() {
+  echo "==> Starting profile: $COMPOSE_PROFILE"
+  docker compose --profile "$COMPOSE_PROFILE" up -d --build
 
-  echo "Starting $container on port $port..."
-
-  # Stop and remove the container if it already exists
-  if docker ps -q -f name="$container" > /dev/null; then
-    echo "Stopping existing container: $container..."
-    docker stop "$container" > /dev/null || true
-    docker rm "$container" > /dev/null || true
-  fi
-
-  # Run the container
-  docker run -d \
-    -p "$port:$port" \
-    --name "$container" \
-    $env_vars \
-    "$image"
-
-  echo "$container is running on port $port."
+  echo ""
+  echo "Stack is up. Active ports depend on profile:"
+  echo "  LocalStack:     http://localhost:4566"
+  echo "  Redis:          localhost:6379"
+  echo "  Auth API:       http://localhost:7011  (internal: 7012)"
+  echo "  User API:       http://localhost:7051  (internal: 7052)"
+  echo "  Shop Items API: http://localhost:7041"
+  echo "  UI:             http://localhost:7001"
 }
 
-function start_auth_api() {
-  start_api "$AUTH_API_IMAGE" "$AUTH_API_CONTAINER" \
-}
-
-function start_address_api() {
-  start_api "$ADDRESS_API_IMAGE" "$ADDRESS_API_CONTAINER" "$ADDRESS_API_PORT" \
-    "-e GEOCODER=mock -e AUTH_API_URL=$AUTH_API_URL"
-}
-
-function stop_all() {
-  echo "Stopping all API containers..."
-  docker stop "$AUTH_API_CONTAINER" "$ADDRESS_API_CONTAINER" > /dev/null || true
-  docker rm "$AUTH_API_CONTAINER" "$ADDRESS_API_CONTAINER" > /dev/null || true
-  echo "All API containers stopped and removed."
+function stop_stack() {
+  echo "==> Stopping all services..."
+  docker compose --profile full down --remove-orphans
 }
 
 function usage() {
-  echo "Usage: $0 [start|stop|restart]"
-  echo "  start: Start all APIs."
-  echo "  stop: Stop all APIs."
-  echo "  restart: Restart all APIs."
+  echo "Usage: $0 [start|stop|restart] [infra|auth|backend|ui|full]"
   exit 1
 }
 
-# Main Script
-if [[ $# -ne 1 ]]; then
-  usage
-fi
+[[ $# -lt 1 ]] && usage
 
 case "$1" in
-  start)
-    start_auth_api
-    start_address_api
-    start_other_api
-    ;;
-  stop)
-    stop_all
-    ;;
-  restart)
-    stop_all
-    start_auth_api
-    start_address_api
-    start_other_api
-    ;;
-  *)
-    usage
-    ;;
+  start)   start_stack ;;
+  stop)    stop_stack ;;
+  restart) stop_stack && start_stack ;;
+  *)       usage ;;
 esac

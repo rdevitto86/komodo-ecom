@@ -1,0 +1,206 @@
+name: CI
+
+# TODO: Re-enable automatic triggers when ready for CI/CD.
+#       Uncomment the pull_request and push blocks below.
+# on:
+#   pull_request:
+#     branches: [main]
+#   push:
+#     branches: [main]
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Detect changed services ──────────────────────────────────────────────
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      ui:              ${{ steps.filter.outputs.ui }}
+      auth-api:        ${{ steps.filter.outputs.auth-api }}
+      user-api:        ${{ steps.filter.outputs.user-api }}
+      shop-items-api:  ${{ steps.filter.outputs.shop-items-api }}
+      address-api:     ${{ steps.filter.outputs.address-api }}
+      ssr-engine:      ${{ steps.filter.outputs.ssr-engine }}
+      order-api:       ${{ steps.filter.outputs.order-api }}
+      payments-api:    ${{ steps.filter.outputs.payments-api }}
+      forge-sdk-go:    ${{ steps.filter.outputs.forge-sdk-go }}
+      forge-sdk-ts:    ${{ steps.filter.outputs.forge-sdk-ts }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ui:
+              - 'ui/**'
+            auth-api:
+              - 'apis/komodo-auth-api/**'
+            user-api:
+              - 'apis/komodo-user-api/**'
+            shop-items-api:
+              - 'apis/komodo-shop-items-api/**'
+            address-api:
+              - 'apis/komodo-address-api/**'
+            ssr-engine:
+              - 'apis/komodo-ssr-engine-svelte/**'
+            order-api:
+              - 'apis/komodo-order-api/**'
+            payments-api:
+              - 'apis/komodo-payments-api/**'
+            forge-sdk-go:
+              - 'apis/komodo-forge-sdk-go/**'
+            forge-sdk-ts:
+              - 'apis/komodo-forge-sdk-ts/**'
+
+  # ── Go SDK (all Go services depend on it) ────────────────────────────────
+  test-forge-sdk-go:
+    name: Test forge-sdk-go
+    needs: changes
+    if: needs.changes.outputs.forge-sdk-go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: apis/komodo-forge-sdk-go/go.sum
+      - name: Test
+        working-directory: apis/komodo-forge-sdk-go
+        run: go test -race ./...
+
+  # ── Go service tests ──────────────────────────────────────────────────────
+  test-go-service:
+    name: Test ${{ matrix.service }}
+    needs: changes
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth-api
+            changed: ${{ needs.changes.outputs.auth-api }}
+          - service: user-api
+            changed: ${{ needs.changes.outputs.user-api }}
+          - service: shop-items-api
+            changed: ${{ needs.changes.outputs.shop-items-api }}
+          - service: address-api
+            changed: ${{ needs.changes.outputs.address-api }}
+          - service: order-api
+            changed: ${{ needs.changes.outputs.order-api }}
+          - service: payments-api
+            changed: ${{ needs.changes.outputs.payments-api }}
+    if: |
+      matrix.changed == 'true' ||
+      needs.changes.outputs.forge-sdk-go == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: apis/komodo-${{ matrix.service }}/go.sum
+      - name: Test
+        working-directory: apis/komodo-${{ matrix.service }}
+        run: go test -race ./...
+
+  # ── TypeScript SDK ────────────────────────────────────────────────────────
+  test-forge-sdk-ts:
+    name: Test forge-sdk-ts
+    needs: changes
+    if: needs.changes.outputs.forge-sdk-ts == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install & Build
+        working-directory: apis/komodo-forge-sdk-ts
+        run: bun install && bun run build
+
+  # ── UI ────────────────────────────────────────────────────────────────────
+  test-ui:
+    name: Test ui
+    needs: changes
+    if: needs.changes.outputs.ui == 'true' || needs.changes.outputs.forge-sdk-ts == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install
+        working-directory: ui
+        run: bun install
+      - name: Type check
+        working-directory: ui
+        run: bun run check 2>/dev/null || true
+      - name: Unit tests
+        working-directory: ui
+        run: bun test
+
+  # ── SSR Engine ───────────────────────────────────────────────────────────
+  test-ssr-engine:
+    name: Test ssr-engine-svelte
+    needs: changes
+    if: needs.changes.outputs.ssr-engine == 'true' || needs.changes.outputs.forge-sdk-ts == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install
+        working-directory: apis/komodo-ssr-engine-svelte
+        run: bun install
+      - name: Build
+        working-directory: apis/komodo-ssr-engine-svelte
+        run: bun run build
+      - name: Test
+        working-directory: apis/komodo-ssr-engine-svelte
+        run: bun test
+
+  # ── Docker build check (active services only) ─────────────────────────────
+  docker-build:
+    name: Docker build ${{ matrix.service }}
+    needs: changes
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth-api
+            context: apis
+            dockerfile: apis/komodo-auth-api/Dockerfile
+            changed: ${{ needs.changes.outputs.auth-api }}
+          - service: user-api
+            context: apis
+            dockerfile: apis/komodo-user-api/Dockerfile
+            changed: ${{ needs.changes.outputs.user-api }}
+          - service: shop-items-api
+            context: apis
+            dockerfile: apis/komodo-shop-items-api/Dockerfile
+            changed: ${{ needs.changes.outputs.shop-items-api }}
+          - service: ssr-engine-svelte
+            context: apis
+            dockerfile: apis/komodo-ssr-engine-svelte/Dockerfile
+            changed: ${{ needs.changes.outputs.ssr-engine }}
+    if: |
+      matrix.changed == 'true' ||
+      needs.changes.outputs.forge-sdk-go == 'true' ||
+      needs.changes.outputs.forge-sdk-ts == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

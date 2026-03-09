@@ -49,6 +49,8 @@ htmlcov/
 *.out
 dist/
 vendor/
+build/
+.svelte-kit/
 
 # Logs
 *.log

@@ -1,0 +1,13 @@
+{
+  "language": "en-US",
+  "timezone": "America/Los_Angeles",
+  "communication": {
+    "email": true,
+    "sms": false,
+    "push": true
+  },
+  "marketing": {
+    "frequency": "weekly",
+    "channel": "email"
+  }
+}

@@ -1,1 +1,0 @@
-{"version":3,"file":"_page.svelte-D-vLhrzB.js","sources":["../../../.svelte-kit/adapter-node/entries/pages/about/_page.svelte.js"],"sourcesContent":["import \"clsx\";\nfunction _page($$renderer) {\n}\nexport {\n  _page as default\n};\n"],"names":[],"mappings":"AACA,SAAS,KAAK,CAAC,UAAU,EAAE;AAC3B;;;;"}

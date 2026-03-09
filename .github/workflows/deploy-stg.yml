@@ -1,0 +1,203 @@
+name: Deploy → STG
+
+# Manually promote a specific git SHA from DEV to Staging.
+# Select which services to deploy using the boolean inputs — by default all
+# are off, forcing explicit intent. Set image-tag to the SHA already deployed
+# to DEV (promotes the same image; no rebuild required unless overriding).
+#
+# Usage:
+#   Actions → Deploy → STG → Run workflow
+#   - image-tag: git SHA that passed DEV (leave blank for latest main SHA)
+#   - Toggle the services you want promoted
+
+on:
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: 'Git SHA to promote (leave blank for HEAD of main)'
+        required: false
+        default: ''
+
+      # ── Service toggles ──────────────────────────────────────────────────
+      deploy-ui:
+        description: 'Deploy ui'
+        type: boolean
+        default: false
+      deploy-auth-api:
+        description: 'Deploy auth-api'
+        type: boolean
+        default: false
+      deploy-user-api:
+        description: 'Deploy user-api'
+        type: boolean
+        default: false
+      deploy-shop-items-api:
+        description: 'Deploy shop-items-api'
+        type: boolean
+        default: false
+      deploy-address-api:
+        description: 'Deploy address-api'
+        type: boolean
+        default: false
+      deploy-ssr-engine:
+        description: 'Deploy ssr-engine-svelte'
+        type: boolean
+        default: false
+      deploy-order-api:
+        description: 'Deploy order-api'
+        type: boolean
+        default: false
+      deploy-payments-api:
+        description: 'Deploy payments-api'
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-stg
+  cancel-in-progress: false
+
+jobs:
+  # ── Resolve image tag ─────────────────────────────────────────────────────
+  resolve:
+    name: Resolve Image Tag
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.tag.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        run: |
+          if [[ -n "${{ inputs.image-tag }}" ]]; then
+            echo "value=${{ inputs.image-tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── Per-service deploy jobs ───────────────────────────────────────────────
+
+  deploy-ui:
+    name: Deploy ui → stg
+    needs: resolve
+    if: inputs.deploy-ui == true
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: ui
+      env: stg
+      image-tag: ${{ needs.resolve.outputs.image-tag }}
+      build-context: ui
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_STG }}
+
+  deploy-auth-api:
+    name: Deploy auth-api → stg
+    needs: resolve
+    if: inputs.deploy-auth-api == true
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: auth-api
+      env: stg
+      image-tag: ${{ needs.resolve.outputs.image-tag }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_STG }}
+
+  deploy-user-api:
+    name: Deploy user-api → stg
+    needs: resolve
+    if: inputs.deploy-user-api == true
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: user-api
+      env: stg
+      image-tag: ${{ needs.resolve.outputs.image-tag }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_STG }}
+
+  deploy-shop-items-api:
+    name: Deploy shop-items-api → stg
+    needs: resolve
+    if: inputs.deploy-shop-items-api == true
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: shop-items-api
+      env: stg
+      image-tag: ${{ needs.resolve.outputs.image-tag }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_STG }}
+
+  deploy-address-api:
+    name: Deploy address-api → stg
+    needs: resolve
+    if: inputs.deploy-address-api == true
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: address-api
+      env: stg
+      image-tag: ${{ needs.resolve.outputs.image-tag }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_STG }}
+
+  deploy-ssr-engine:
+    name: Deploy ssr-engine-svelte → stg
+    needs: resolve
+    if: inputs.deploy-ssr-engine == true
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: ssr-engine-svelte
+      env: stg
+      image-tag: ${{ needs.resolve.outputs.image-tag }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_STG }}
+
+  deploy-order-api:
+    name: Deploy order-api → stg
+    needs: resolve
+    if: inputs.deploy-order-api == true
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: order-api
+      env: stg
+      image-tag: ${{ needs.resolve.outputs.image-tag }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_STG }}
+
+  deploy-payments-api:
+    name: Deploy payments-api → stg
+    needs: resolve
+    if: inputs.deploy-payments-api == true
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: payments-api
+      env: stg
+      image-tag: ${{ needs.resolve.outputs.image-tag }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_STG }}
+
+  # ── Summary ───────────────────────────────────────────────────────────────
+  summary:
+    name: STG Deploy Summary
+    runs-on: ubuntu-latest
+    needs:
+      - resolve
+      - deploy-ui
+      - deploy-auth-api
+      - deploy-user-api
+      - deploy-shop-items-api
+      - deploy-address-api
+      - deploy-ssr-engine
+      - deploy-order-api
+      - deploy-payments-api
+    if: always()
+    steps:
+      - name: Report outcomes
+        run: |
+          echo "## STG Deploy Results (image: ${{ needs.resolve.outputs.image-tag }})" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| ui              | ${{ needs.deploy-ui.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| auth-api        | ${{ needs.deploy-auth-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| user-api        | ${{ needs.deploy-user-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| shop-items-api  | ${{ needs.deploy-shop-items-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| address-api     | ${{ needs.deploy-address-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ssr-engine      | ${{ needs.deploy-ssr-engine.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| order-api       | ${{ needs.deploy-order-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| payments-api    | ${{ needs.deploy-payments-api.result }} |" >> $GITHUB_STEP_SUMMARY

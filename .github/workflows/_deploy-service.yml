@@ -1,0 +1,109 @@
+name: Deploy Service (reusable)
+
+# Reusable workflow: build a Docker image, push to ECR, register a new
+# ECS task definition, and update the ECS service — all for a single service.
+#
+# Callers supply the service name and environment; this workflow handles
+# ECR login, image build/push, task-def registration, and ECS rollout.
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        description: 'Service name, e.g. auth-api, shop-items-api, ui'
+        required: true
+        type: string
+      env:
+        description: 'Target environment: dev | stg | prod'
+        required: true
+        type: string
+      image-tag:
+        description: 'Docker image tag (defaults to caller SHA)'
+        required: false
+        type: string
+        default: ''
+      # Build context is the apis/ directory for Go services; ui/ for the frontend
+      build-context:
+        description: 'Docker build context path relative to repo root'
+        required: false
+        type: string
+        default: 'apis'
+      dockerfile:
+        description: 'Path to Dockerfile relative to repo root'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.service }} → ${{ inputs.env }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+
+    env:
+      AWS_REGION: us-east-1
+      ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+      IMAGE_TAG: ${{ inputs.image-tag != '' && inputs.image-tag || github.sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set Dockerfile path
+        id: dockerfile
+        run: |
+          if [[ -n "${{ inputs.dockerfile }}" ]]; then
+            echo "path=${{ inputs.dockerfile }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ inputs.service }}" == "ui" ]]; then
+            echo "path=ui/Dockerfile" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=apis/komodo-${{ inputs.service }}/Dockerfile" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.build-context }}
+          file: ${{ steps.dockerfile.outputs.path }}
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/komodo-${{ inputs.service }}:${{ env.IMAGE_TAG }}
+            ${{ env.ECR_REGISTRY }}/komodo-${{ inputs.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Download current ECS task definition
+        run: |
+          TASK_DEF_FAMILY="komodo-${{ inputs.service }}-${{ inputs.env }}"
+          aws ecs describe-task-definition \
+            --task-definition "$TASK_DEF_FAMILY" \
+            --query taskDefinition \
+            > task-def.json
+
+      - name: Update image URI in task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def.json
+          container-name: komodo-${{ inputs.service }}
+          image: ${{ env.ECR_REGISTRY }}/komodo-${{ inputs.service }}:${{ env.IMAGE_TAG }}
+
+      - name: Deploy updated task definition to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: komodo-${{ inputs.service }}-${{ inputs.env }}
+          cluster: komodo-${{ inputs.env }}
+          wait-for-service-stability: true
+          wait-for-minutes: 10

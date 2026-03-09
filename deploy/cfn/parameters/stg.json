@@ -1,0 +1,13 @@
+[
+  { "ParameterKey": "Environment",        "ParameterValue": "stg" },
+  { "ParameterKey": "VpcCidr",            "ParameterValue": "10.1.0.0/16" },
+  { "ParameterKey": "PublicSubnet1Cidr",  "ParameterValue": "10.1.1.0/24" },
+  { "ParameterKey": "PublicSubnet2Cidr",  "ParameterValue": "10.1.2.0/24" },
+  { "ParameterKey": "PrivateSubnet1Cidr", "ParameterValue": "10.1.11.0/24" },
+  { "ParameterKey": "PrivateSubnet2Cidr", "ParameterValue": "10.1.12.0/24" },
+  { "ParameterKey": "ServiceDesiredCount","ParameterValue": "1" },
+  { "ParameterKey": "TaskCpu",            "ParameterValue": "256" },
+  { "ParameterKey": "TaskMemory",         "ParameterValue": "512" },
+  { "ParameterKey": "LogRetentionDays",   "ParameterValue": "14" },
+  { "ParameterKey": "DomainName",         "ParameterValue": "stg.komodo.example.com" }
+]

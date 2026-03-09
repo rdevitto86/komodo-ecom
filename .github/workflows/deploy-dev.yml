@@ -1,0 +1,222 @@
+name: Deploy → DEV
+
+# Automatically deploys any changed service to DEV after CI passes on main.
+# Only services whose source paths changed in the push are rebuilt and deployed.
+# If forge-sdk-go or forge-sdk-ts changes, all downstream Go/TS services are rebuilt.
+
+# TODO: Re-enable automatic deploy trigger when CI/CD is ready.
+#       Uncomment the workflow_run block below and remove workflow_dispatch.
+# on:
+#   workflow_run:
+#     workflows: [CI]
+#     types: [completed]
+#     branches: [main]
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false   # never cancel an in-flight deploy; queue instead
+
+jobs:
+  # ── Gate: only proceed when CI passed ────────────────────────────────────
+  gate:
+    name: CI Passed Gate
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    outputs:
+      sha: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - run: echo "CI passed for ${{ github.event.workflow_run.head_sha }}"
+
+  # ── Detect what changed in the triggering push ────────────────────────────
+  changes:
+    name: Detect Changes
+    needs: gate
+    runs-on: ubuntu-latest
+    outputs:
+      ui:              ${{ steps.filter.outputs.ui }}
+      auth-api:        ${{ steps.filter.outputs.auth-api }}
+      user-api:        ${{ steps.filter.outputs.user-api }}
+      shop-items-api:  ${{ steps.filter.outputs.shop-items-api }}
+      address-api:     ${{ steps.filter.outputs.address-api }}
+      ssr-engine:      ${{ steps.filter.outputs.ssr-engine }}
+      order-api:       ${{ steps.filter.outputs.order-api }}
+      payments-api:    ${{ steps.filter.outputs.payments-api }}
+      forge-sdk-go:    ${{ steps.filter.outputs.forge-sdk-go }}
+      forge-sdk-ts:    ${{ steps.filter.outputs.forge-sdk-ts }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          fetch-depth: 2          # paths-filter needs the parent commit
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            ui:
+              - 'ui/**'
+            auth-api:
+              - 'apis/komodo-auth-api/**'
+            user-api:
+              - 'apis/komodo-user-api/**'
+            shop-items-api:
+              - 'apis/komodo-shop-items-api/**'
+            address-api:
+              - 'apis/komodo-address-api/**'
+            ssr-engine:
+              - 'apis/komodo-ssr-engine-svelte/**'
+            order-api:
+              - 'apis/komodo-order-api/**'
+            payments-api:
+              - 'apis/komodo-payments-api/**'
+            forge-sdk-go:
+              - 'apis/komodo-forge-sdk-go/**'
+            forge-sdk-ts:
+              - 'apis/komodo-forge-sdk-ts/**'
+
+  # ── Per-service deploy jobs ───────────────────────────────────────────────
+  # Each job is independent — they run in parallel when multiple services change.
+
+  deploy-ui:
+    name: Deploy ui → dev
+    needs: [gate, changes]
+    if: |
+      needs.changes.outputs.ui == 'true' ||
+      needs.changes.outputs.forge-sdk-ts == 'true'
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: ui
+      env: dev
+      image-tag: ${{ needs.gate.outputs.sha }}
+      build-context: ui
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_DEV }}
+
+  deploy-auth-api:
+    name: Deploy auth-api → dev
+    needs: [gate, changes]
+    if: |
+      needs.changes.outputs.auth-api == 'true' ||
+      needs.changes.outputs.forge-sdk-go == 'true'
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: auth-api
+      env: dev
+      image-tag: ${{ needs.gate.outputs.sha }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_DEV }}
+
+  deploy-user-api:
+    name: Deploy user-api → dev
+    needs: [gate, changes]
+    if: |
+      needs.changes.outputs.user-api == 'true' ||
+      needs.changes.outputs.forge-sdk-go == 'true'
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: user-api
+      env: dev
+      image-tag: ${{ needs.gate.outputs.sha }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_DEV }}
+
+  deploy-shop-items-api:
+    name: Deploy shop-items-api → dev
+    needs: [gate, changes]
+    if: |
+      needs.changes.outputs.shop-items-api == 'true' ||
+      needs.changes.outputs.forge-sdk-go == 'true'
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: shop-items-api
+      env: dev
+      image-tag: ${{ needs.gate.outputs.sha }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_DEV }}
+
+  deploy-address-api:
+    name: Deploy address-api → dev
+    needs: [gate, changes]
+    if: |
+      needs.changes.outputs.address-api == 'true' ||
+      needs.changes.outputs.forge-sdk-go == 'true'
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: address-api
+      env: dev
+      image-tag: ${{ needs.gate.outputs.sha }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_DEV }}
+
+  deploy-ssr-engine:
+    name: Deploy ssr-engine-svelte → dev
+    needs: [gate, changes]
+    if: |
+      needs.changes.outputs.ssr-engine == 'true' ||
+      needs.changes.outputs.forge-sdk-ts == 'true'
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: ssr-engine-svelte
+      env: dev
+      image-tag: ${{ needs.gate.outputs.sha }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_DEV }}
+
+  deploy-order-api:
+    name: Deploy order-api → dev
+    needs: [gate, changes]
+    if: |
+      needs.changes.outputs.order-api == 'true' ||
+      needs.changes.outputs.forge-sdk-go == 'true'
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: order-api
+      env: dev
+      image-tag: ${{ needs.gate.outputs.sha }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_DEV }}
+
+  deploy-payments-api:
+    name: Deploy payments-api → dev
+    needs: [gate, changes]
+    if: |
+      needs.changes.outputs.payments-api == 'true' ||
+      needs.changes.outputs.forge-sdk-go == 'true'
+    uses: ./.github/workflows/_deploy-service.yml
+    with:
+      service: payments-api
+      env: dev
+      image-tag: ${{ needs.gate.outputs.sha }}
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN_DEV }}
+
+  # ── Summary ───────────────────────────────────────────────────────────────
+  summary:
+    name: DEV Deploy Summary
+    runs-on: ubuntu-latest
+    needs:
+      - deploy-ui
+      - deploy-auth-api
+      - deploy-user-api
+      - deploy-shop-items-api
+      - deploy-address-api
+      - deploy-ssr-engine
+      - deploy-order-api
+      - deploy-payments-api
+    if: always()
+    steps:
+      - name: Report outcomes
+        run: |
+          echo "## DEV Deploy Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| ui              | ${{ needs.deploy-ui.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| auth-api        | ${{ needs.deploy-auth-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| user-api        | ${{ needs.deploy-user-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| shop-items-api  | ${{ needs.deploy-shop-items-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| address-api     | ${{ needs.deploy-address-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ssr-engine      | ${{ needs.deploy-ssr-engine.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| order-api       | ${{ needs.deploy-order-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| payments-api    | ${{ needs.deploy-payments-api.result }} |" >> $GITHUB_STEP_SUMMARY

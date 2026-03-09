@@ -1,0 +1,498 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Komodo – ECS Services Stack.
+  Depends on komodo-infra-<env> stack (imports VPC, subnets, security groups via exports).
+  Creates: ECS Fargate cluster, ALB, IAM task roles, and a task definition + service
+  per active Komodo service.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, stg, prod]
+
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag to deploy (typically the git SHA)
+
+  ServiceDesiredCount:
+    Type: Number
+    Default: 1
+
+  TaskCpu:
+    Type: Number
+    Default: 256
+    AllowedValues: [256, 512, 1024, 2048, 4096]
+
+  TaskMemory:
+    Type: Number
+    Default: 512
+    AllowedValues: [512, 1024, 2048, 4096, 8192]
+
+  DomainName:
+    Type: String
+
+  # TODO: Set this to your AWS Account ID and Region
+  AWSAccountId:
+    Type: String
+    Description: AWS Account ID (used to construct ECR URIs)
+
+  AWSRegion:
+    Type: String
+    Default: us-east-1
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ── ECS Cluster ───────────────────────────────────────────────────────────
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub komodo-${Environment}
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── IAM ───────────────────────────────────────────────────────────────────
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub komodo-task-execution-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub arn:aws:secretsmanager:${AWSRegion}:${AWSAccountId}:secret:komodo-*
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub komodo-task-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: KomodoTaskPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWSRegion}:${AWSAccountId}:table/komodo-*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::komodo-content-${Environment}-${AWSAccountId}
+                  - !Sub arn:aws:s3:::komodo-content-${Environment}-${AWSAccountId}/*
+                  - !Sub arn:aws:s3:::komodo-items-${Environment}-${AWSAccountId}
+                  - !Sub arn:aws:s3:::komodo-items-${Environment}-${AWSAccountId}/*
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Sub arn:aws:secretsmanager:${AWSRegion}:${AWSAccountId}:secret:komodo-*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWSRegion}:${AWSAccountId}:log-group:/komodo/${Environment}:*
+
+  # ── Application Load Balancer ─────────────────────────────────────────────
+
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub komodo-alb-${Environment}
+      Scheme: internet-facing
+      Type: application
+      SecurityGroups:
+        - Fn::ImportValue: !Sub komodo-${Environment}-ALBSecurityGroupId
+      Subnets:
+        - Fn::ImportValue: !Sub komodo-${Environment}-PublicSubnet1Id
+        - Fn::ImportValue: !Sub komodo-${Environment}-PublicSubnet2Id
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  ALBListenerHTTP:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: '443'
+            StatusCode: HTTP_301
+
+  # TODO: Add HTTPS listener with ACM certificate when domain is configured
+  # ALBListenerHTTPS:
+  #   Type: AWS::ElasticLoadBalancingV2::Listener
+  #   Properties:
+  #     LoadBalancerArn: !Ref ALB
+  #     Port: 443
+  #     Protocol: HTTPS
+  #     Certificates:
+  #       - CertificateArn: !Sub arn:aws:acm:${AWSRegion}:${AWSAccountId}:certificate/TODO
+  #     DefaultActions:
+  #       - Type: forward
+  #         TargetGroupArn: !Ref UITargetGroup
+
+  # ── Target Groups ─────────────────────────────────────────────────────────
+
+  UITargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub komodo-ui-${Environment}
+      Port: 7001
+      Protocol: HTTP
+      TargetType: ip
+      VpcId:
+        Fn::ImportValue: !Sub komodo-${Environment}-VpcId
+      HealthCheckPath: /api/health
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  AuthApiTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub komodo-auth-${Environment}
+      Port: 7011
+      Protocol: HTTP
+      TargetType: ip
+      VpcId:
+        Fn::ImportValue: !Sub komodo-${Environment}-VpcId
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  UserApiTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub komodo-user-${Environment}
+      Port: 7051
+      Protocol: HTTP
+      TargetType: ip
+      VpcId:
+        Fn::ImportValue: !Sub komodo-${Environment}-VpcId
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  ShopItemsApiTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub komodo-shop-${Environment}
+      Port: 7041
+      Protocol: HTTP
+      TargetType: ip
+      VpcId:
+        Fn::ImportValue: !Sub komodo-${Environment}-VpcId
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  # ── Task Definitions ──────────────────────────────────────────────────────
+
+  UITaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub komodo-ui-${Environment}
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: ui
+          Image: !Sub ${AWSAccountId}.dkr.ecr.${AWSRegion}.amazonaws.com/komodo-ui-${Environment}:${ImageTag}
+          PortMappings:
+            - ContainerPort: 7001
+          Environment:
+            - Name: ENV
+              Value: !Ref Environment
+            - Name: PORT
+              Value: '7001'
+            - Name: NODE_ENV
+              Value: production
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Fn::ImportValue: !Sub komodo-${Environment}-LogGroup
+              awslogs-region: !Ref AWSRegion
+              awslogs-stream-prefix: ui
+
+  AuthApiTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub komodo-auth-api-${Environment}
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: auth-api
+          Image: !Sub ${AWSAccountId}.dkr.ecr.${AWSRegion}.amazonaws.com/komodo-auth-api-${Environment}:${ImageTag}
+          PortMappings:
+            - ContainerPort: 7011
+          Environment:
+            - Name: APP_NAME
+              Value: komodo-auth-api
+            - Name: ENV
+              Value: !Ref Environment
+            - Name: PORT
+              Value: ':7011'
+            - Name: AWS_REGION
+              Value: !Ref AWSRegion
+            - Name: AWS_SECRET_PREFIX
+              Value: !Sub komodo-auth-api/${Environment}/
+            - Name: AWS_SECRET_BATCH
+              Value: all-secrets
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Fn::ImportValue: !Sub komodo-${Environment}-LogGroup
+              awslogs-region: !Ref AWSRegion
+              awslogs-stream-prefix: auth-api
+
+  UserApiTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub komodo-user-api-${Environment}
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: user-api-public
+          Image: !Sub ${AWSAccountId}.dkr.ecr.${AWSRegion}.amazonaws.com/komodo-user-api-${Environment}:${ImageTag}
+          PortMappings:
+            - ContainerPort: 7051
+            - ContainerPort: 7052
+          Environment:
+            - Name: APP_NAME
+              Value: komodo-user-api
+            - Name: ENV
+              Value: !Ref Environment
+            - Name: PORT
+              Value: '7051'
+            - Name: INTERNAL_PORT
+              Value: '7052'
+            - Name: AWS_REGION
+              Value: !Ref AWSRegion
+            - Name: AWS_SECRET_PREFIX
+              Value: !Sub komodo-user-api/${Environment}/
+            - Name: AWS_SECRET_BATCH
+              Value: all-secrets
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Fn::ImportValue: !Sub komodo-${Environment}-LogGroup
+              awslogs-region: !Ref AWSRegion
+              awslogs-stream-prefix: user-api
+
+  ShopItemsApiTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub komodo-shop-items-api-${Environment}
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: shop-items-api
+          Image: !Sub ${AWSAccountId}.dkr.ecr.${AWSRegion}.amazonaws.com/komodo-shop-items-api-${Environment}:${ImageTag}
+          PortMappings:
+            - ContainerPort: 7041
+          Environment:
+            - Name: APP_NAME
+              Value: komodo-shop-items-api
+            - Name: ENV
+              Value: !Ref Environment
+            - Name: PORT
+              Value: '7041'
+            - Name: AWS_REGION
+              Value: !Ref AWSRegion
+            - Name: AWS_SECRET_PREFIX
+              Value: !Sub komodo-shop-items-api/${Environment}/
+            - Name: AWS_SECRET_BATCH
+              Value: all-secrets
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Fn::ImportValue: !Sub komodo-${Environment}-LogGroup
+              awslogs-region: !Ref AWSRegion
+              awslogs-stream-prefix: shop-items-api
+
+  # ── ECS Services ──────────────────────────────────────────────────────────
+
+  UIService:
+    Type: AWS::ECS::Service
+    DependsOn: ALBListenerHTTP
+    Properties:
+      ServiceName: !Sub komodo-ui-${Environment}
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref UITaskDef
+      DesiredCount: !Ref ServiceDesiredCount
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - Fn::ImportValue: !Sub komodo-${Environment}-ServicesSecurityGroupId
+          Subnets:
+            - Fn::ImportValue: !Sub komodo-${Environment}-PrivateSubnet1Id
+            - Fn::ImportValue: !Sub komodo-${Environment}-PrivateSubnet2Id
+      LoadBalancers:
+        - ContainerName: ui
+          ContainerPort: 7001
+          TargetGroupArn: !Ref UITargetGroup
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+
+  AuthApiService:
+    Type: AWS::ECS::Service
+    DependsOn: ALBListenerHTTP
+    Properties:
+      ServiceName: !Sub komodo-auth-api-${Environment}
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref AuthApiTaskDef
+      DesiredCount: !Ref ServiceDesiredCount
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - Fn::ImportValue: !Sub komodo-${Environment}-ServicesSecurityGroupId
+          Subnets:
+            - Fn::ImportValue: !Sub komodo-${Environment}-PrivateSubnet1Id
+            - Fn::ImportValue: !Sub komodo-${Environment}-PrivateSubnet2Id
+      LoadBalancers:
+        - ContainerName: auth-api
+          ContainerPort: 7011
+          TargetGroupArn: !Ref AuthApiTargetGroup
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+
+  UserApiService:
+    Type: AWS::ECS::Service
+    DependsOn: ALBListenerHTTP
+    Properties:
+      ServiceName: !Sub komodo-user-api-${Environment}
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref UserApiTaskDef
+      DesiredCount: !Ref ServiceDesiredCount
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - Fn::ImportValue: !Sub komodo-${Environment}-ServicesSecurityGroupId
+          Subnets:
+            - Fn::ImportValue: !Sub komodo-${Environment}-PrivateSubnet1Id
+            - Fn::ImportValue: !Sub komodo-${Environment}-PrivateSubnet2Id
+      LoadBalancers:
+        - ContainerName: user-api-public
+          ContainerPort: 7051
+          TargetGroupArn: !Ref UserApiTargetGroup
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+
+  ShopItemsApiService:
+    Type: AWS::ECS::Service
+    DependsOn: ALBListenerHTTP
+    Properties:
+      ServiceName: !Sub komodo-shop-items-api-${Environment}
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref ShopItemsApiTaskDef
+      DesiredCount: !Ref ServiceDesiredCount
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - Fn::ImportValue: !Sub komodo-${Environment}-ServicesSecurityGroupId
+          Subnets:
+            - Fn::ImportValue: !Sub komodo-${Environment}-PrivateSubnet1Id
+            - Fn::ImportValue: !Sub komodo-${Environment}-PrivateSubnet2Id
+      LoadBalancers:
+        - ContainerName: shop-items-api
+          ContainerPort: 7041
+          TargetGroupArn: !Ref ShopItemsApiTargetGroup
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  ClusterName:
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub komodo-${Environment}-ClusterName
+
+  ALBDnsName:
+    Value: !GetAtt ALB.DNSName
+    Export:
+      Name: !Sub komodo-${Environment}-ALBDnsName

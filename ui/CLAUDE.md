@@ -1,13 +1,13 @@
 # Komodo UI — AI Context
 
 ## Project Purpose
-SvelteKit 5 frontend for a portfolio-grade e-commerce platform. Personal project with a realistic path to a real small business. Cost-efficient today with a clear AWS scaling path.
+SvelteKit 5 frontend for a real e-commerce business. Architecture decisions prioritize correctness and operational reliability — not skill demonstration. Initial deployment is low-cost AWS (S3/CloudFront static, EC2 for backend); target state is adapter-node on ECS Fargate.
 
 ---
 
 ## Active Mode
 
-Agent profiles live at the monorepo root in `.agents/`. See root `CLAUDE.md` for the full mode table.
+Agent profiles live at the monorepo root in `.claude/agents/`. See root `CLAUDE.md` for the full mode table.
 
 | Mode | Trigger | Role |
 |------|---------|------|
@@ -37,13 +37,13 @@ Agent profiles live at the monorepo root in `.agents/`. See root `CLAUDE.md` for
 - **Tests:** `bun run test:unit` (Vitest + Testing Library), `bun run test:e2e` (Playwright)
 
 ## Deployment Strategy
-> Current state: demo site only. Real backend not deployed.
+> Current state: frontend live (static). Backend not yet deployed.
 
 | Target | Adapter | Script | Deploy |
 |--------|---------|--------|--------|
-| Demo (S3 + CloudFront) | `adapter-static` | `bun run build:demo` | Static files → S3 |
+| Static (S3 + CloudFront) | `adapter-static` | `bun run build:demo` | Static files → S3 |
 | Local dev (Docker) | — (dev server) | `bun run dev` | `just up api ui` |
-| Real backend (EC2/ECS) | `adapter-node` | `bun run build` | EC2 docker-compose |
+| Production (EC2/ECS Fargate) | `adapter-node` | `bun run build` | EC2 docker-compose → ECS |
 
 `build:demo` uses `--mode mock` → reads `.env.mock` → disables real API calls and uses mock data.
 

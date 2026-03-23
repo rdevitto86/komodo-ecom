@@ -1,28 +1,19 @@
 import { env } from '$env/dynamic/private';
-import { APIClient } from './common/client';
 
-interface SecretsResponse {
-	ENV: string;
-	PUBLIC_API_URL: string;
-	[key: string]: string;
-}
-
-export class SecretsAPI extends APIClient {
-
-	async getSecrets(): Promise<SecretsResponse> {
-		try {
-			// return await this.send('GET', '/secrets');
-			const res = {
-				ENV:  env.ENV || 'local',
-				PUBLIC_API_URL: env.PUBLIC_API_URL || '',
-				AWS_REGION: 'us-east-1',
-				AWS_ACCESS_KEY_ID: 'test',
-				AWS_SECRET_ACCESS_KEY: 'test'
-			};
-			return res;
-		} catch (err) {
-			console.error('failed to fetch secrets from AWS Secrets Manager:', err as Error);
-			throw err;
-		}
-	}
+/**
+ * Runtime config resolved from environment variables.
+ * On EC2/Fargate these are injected by the container runtime.
+ * Locally they come from .env files or docker-compose environment blocks.
+ *
+ * NOTE: Never expose secrets through a BFF API route.
+ * All secret access stays server-side within this module.
+ */
+export function getServerConfig() {
+  return {
+    env: env.ENV ?? 'development',
+    authApiUrl:      env.AUTH_API_URL      ?? 'http://localhost:7011',
+    userApiUrl:      env.USER_API_URL      ?? 'http://localhost:7051',
+    shopItemsApiUrl: env.SHOP_ITEMS_API_URL ?? 'http://localhost:7041',
+    cartApiUrl:      env.CART_API_URL      ?? 'http://localhost:7043',
+  };
 }

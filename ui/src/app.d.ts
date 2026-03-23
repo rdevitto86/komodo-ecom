@@ -1,20 +1,20 @@
 import 'vitest';
-import type { Logger } from '$lib/logger/splunk';
 declare global {
   namespace App {
     interface Locals {
-      secrets: Record<string, string>;
+      requestId: string;
     }
     // interface Error {}
     // interface PageData {}
     // interface Platform {}
   }
-  var logger: Logger;
 }
 
 declare module '$env/dynamic/private' {
-  export const STRIPE_KEY: string;
-  export const BACKEND_TOKEN: string;
+  export const AUTH_API_URL: string;
+  export const USER_API_URL: string;
+  export const SHOP_ITEMS_API_URL: string;
+  export const CART_API_URL: string;
 }
 
 declare module '$env/dynamic/public' {

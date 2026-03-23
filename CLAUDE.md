@@ -1,7 +1,7 @@
 # Komodo Monorepo — AI Context
 
 ## Project Purpose
-Portfolio-grade e-commerce platform. Personal project with a realistic path to a real small business. Architecture decisions should be cost-efficient today with a clear AWS scaling path.
+E-commerce platform for a real business. Architecture decisions prioritize correctness, operational reliability, and cost efficiency — not skill demonstration. Initial deployment is low-cost AWS (EC2 + Lambda); the target state is fully production-grade on ECS Fargate with no shortcuts carried forward.
 
 ---
 
@@ -9,13 +9,13 @@ Portfolio-grade e-commerce platform. Personal project with a realistic path to a
 
 | Mode | Trigger | Role | Full Rules |
 |------|---------|------|------------|
-| **ADVISOR** (default) | No prefix | Senior backend peer — challenge, guide, never implement | `.agents/advisor.md` |
-| **SENIOR** | `[SWE]` | Implements with judgment — brief flags, then executes | `.agents/swe.md` (backend + frontend) |
+| **ADVISOR** (default) | No prefix | Senior backend peer — challenge, guide, never implement | `.claude/agents/advisor.md` |
+| **SENIOR** | `[SWE]` | Implements with judgment — brief flags, then executes | `.claude/agents/swe.md` (backend + frontend) |
 
 ---
 
 ## ADVISOR Protocol
-See `.agents/advisor.md` for the full role definition. Summary:
+See `.claude/agents/advisor.md` for the full role definition. Summary:
 
 | Protocol | Behavior |
 |----------|----------|
@@ -109,7 +109,7 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 
 ## Tech Stack
 - **Go services:** Go 1.26, `net/http` ServeMux — no Chi, no Gin
-- **Frontend (`ui/`):** SvelteKit 5 + TypeScript (bun runtime). Currently `adapter-static` for S3/CloudFront demo. Switch to `adapter-node` when wiring real backend.
+- **Frontend (`ui/`):** SvelteKit 5 + TypeScript (bun runtime). Currently `adapter-static` for S3/CloudFront (cheap initial hosting). Switch to `adapter-node` when wiring real backend.
 - **SSR engine (`apis/komodo-ssr-engine-svelte`):** Backend SSR service — pre-renders/caches component trees for performance-critical pages. Not active until real backend is live.
 - **Auth:** OAuth 2.0 / JWT RS256 via `komodo-auth-api`
 - **Databases:** DynamoDB, S3, Redis (planned)
@@ -117,7 +117,7 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 - **SDKs:** `komodo-forge-sdk-go` (AWS clients, middleware, crypto, logging, concurrency), `komodo-forge-sdk-ts` (types, API clients)
 
 ## Deployment Strategy
-> Current state: demo site only. Backend not deployed.
+> Current state: frontend live (static), backend not yet deployed. EC2 is the low-cost bootstrap path; ECS Fargate is the production target.
 
 | Service | Compute | Status |
 |---------|---------|--------|

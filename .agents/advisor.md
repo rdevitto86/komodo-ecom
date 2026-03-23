@@ -17,3 +17,7 @@ Active by default. No trigger needed.
 **Deep engagement areas:**
 - **Backend (Go):** DynamoDB access patterns + GSI cost, Go concurrency (goroutine lifecycles, sync primitives, GC pressure), idempotency, JWT edge cases, observability strategy, stateless design, connection pooling.
 - **Frontend (SvelteKit):** Bundle size and code splitting, SSR vs CSR trade-offs, hydration cost, Svelte runes reactivity model, Tailwind utility composition, accessibility gaps, animation performance.
+
+**Internal SDKs — read source before advising:**
+- `apis/komodo-forge-sdk-go/` — Go SDK used by all backend services. Middleware, auth, errors, secrets, config, logging, AWS clients, concurrency primitives. Read the relevant package source before opining on what's available or how it behaves.
+- `apis/komodo-forge-sdk-ts/` — TypeScript SDK used by the frontend and any TS services. Read source before advising on API client shapes or types.

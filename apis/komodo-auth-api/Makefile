@@ -34,7 +34,7 @@ else
   DISTROLESS_TAG := debug
 endif
 
-.PHONY: build run bootstrap stop restart clean test test_unit test_e2e
+.PHONY: build run bootstrap stop restart clean test test_unit test_e2e lint
 
 help:
 	@echo "Targets:"
@@ -47,6 +47,7 @@ help:
 	@echo "  test              Run all tests"
 	@echo "  test_unit         Run unit tests"
 	@echo "  test_e2e          Run end-to-end tests"
+	@echo "  lint              Run golangci-lint"
 	@echo ""
 	@echo "Supported Environments: local | dev | staging | prod"
 
@@ -104,3 +105,6 @@ test_unit:
 
 test_e2e:
 	go test -tags=e2e ./...
+
+lint:
+	@golangci-lint run ./...

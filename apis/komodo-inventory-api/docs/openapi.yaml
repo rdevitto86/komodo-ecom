@@ -1,0 +1,299 @@
+openapi: "3.1.0"
+info:
+  title: komodo-inventory-api
+  version: "1.0.0"
+  description: |
+    Stock tracking and reservation service. Internal-only — all routes except /health
+    require an internal service JWT (client_credentials scope).
+servers:
+  - url: http://localhost:7044
+    description: Local dev
+
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: OK
+
+  /stock:
+    get:
+      summary: Batch stock levels for a list of SKUs
+      operationId: getBatchStock
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: skus
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: false
+          description: Comma-separated SKUs (max 100)
+      responses:
+        "200":
+          description: Stock levels
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: "#/components/schemas/StockLevel"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /stock/{sku}:
+    get:
+      summary: Get stock level for a single SKU
+      operationId: getStock
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Sku"
+      responses:
+        "200":
+          description: Stock level
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockLevel"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /stock/{sku}/reserve:
+    post:
+      summary: Place a stock hold
+      operationId: reserveStock
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Sku"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReserveRequest"
+      responses:
+        "201":
+          description: Hold placed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoldResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Insufficient stock
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /stock/{sku}/reserve/{holdId}:
+    delete:
+      summary: Release a stock hold early
+      operationId: releaseHold
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Sku"
+        - $ref: "#/components/parameters/HoldId"
+      responses:
+        "204":
+          description: Hold released
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /stock/{sku}/confirm:
+    post:
+      summary: Convert hold to confirmed decrement on order confirmation
+      operationId: confirmStock
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Sku"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmRequest"
+      responses:
+        "204":
+          description: Stock confirmed
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Hold not found or already expired
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /stock/{sku}/restock:
+    post:
+      summary: Increment stock (new stock received or return processed)
+      operationId: restockSku
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Sku"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestockRequest"
+      responses:
+        "200":
+          description: Stock updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockLevel"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Sku:
+      name: sku
+      in: path
+      required: true
+      schema:
+        type: string
+    HoldId:
+      name: holdId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    StockLevel:
+      type: object
+      required: [sku, available_qty, reserved_qty, committed_qty]
+      properties:
+        sku:
+          type: string
+        available_qty:
+          type: integer
+          description: Units available for new reservations
+        reserved_qty:
+          type: integer
+          description: Units currently held (not yet confirmed)
+        committed_qty:
+          type: integer
+          description: Units sold (orders confirmed)
+        restock_threshold:
+          type: integer
+          description: Alert fires when available_qty drops below this
+
+    ReserveRequest:
+      type: object
+      required: [cart_id, quantity]
+      properties:
+        cart_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+
+    HoldResponse:
+      type: object
+      required: [hold_id, sku, quantity, expires_at]
+      properties:
+        hold_id:
+          type: string
+          format: uuid
+        sku:
+          type: string
+        quantity:
+          type: integer
+        expires_at:
+          type: string
+          format: date-time
+
+    ConfirmRequest:
+      type: object
+      required: [hold_id]
+      properties:
+        hold_id:
+          type: string
+          format: uuid
+
+    RestockRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          description: e.g. "purchase_received", "return_processed"
+          enum: [purchase_received, return_processed, adjustment]
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: SKU or hold not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

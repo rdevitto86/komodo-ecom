@@ -1,0 +1,40 @@
+name: komodo-support-api
+
+services:
+  support-api:
+    image: ${APP_NAME}:${VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: komodo-support-api/Dockerfile
+      args:
+        ENV: ${ENV:-local}
+    restart: ${RESTART_POLICY:-no}
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_LIMIT:-512M}
+    environment:
+      APP_NAME: ${APP_NAME}
+      ENV: ${ENV}
+      PORT: 7101
+      VERSION: ${VERSION}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ENDPOINT: ${AWS_ENDPOINT}
+      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
+      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH}
+    ports:
+      - "7101:7101"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7101/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - komodo-network
+
+networks:
+  komodo-network:
+    external: true

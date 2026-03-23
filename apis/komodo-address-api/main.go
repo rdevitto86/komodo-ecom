@@ -1,116 +1,86 @@
 package main
 
 import (
-	"context"
-	"errors"
-	"komodo-address-api/internal/httpapi/handlers"
-	internal_mw "komodo-address-api/internal/httpapi/middleware"
-	"komodo-address-api/thirdparty/aws"
-	"log"
 	"net/http"
 	"os"
-	"os/signal"
-	"strings"
-	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"komodo-address-api/internal/handlers"
+
+	awsSM "komodo-forge-sdk-go/aws/secrets-manager"
+	"komodo-forge-sdk-go/config"
+	"komodo-forge-sdk-go/crypto/jwt"
+	mw "komodo-forge-sdk-go/http/middleware"
+	srv "komodo-forge-sdk-go/http/server"
+	logger "komodo-forge-sdk-go/logging/runtime"
 )
 
+// init runs once per execution environment (cold start on Lambda, once on Fargate/local).
+// Order matters: logger first, then SM (loads JWT_* keys), then JWT init.
+func init() {
+	logger.Init(
+		config.GetConfigValue("APP_NAME"),
+		config.GetConfigValue("LOG_LEVEL"),
+		config.GetConfigValue("ENV"),
+	)
+
+	if err := awsSM.Bootstrap(awsSM.Config{
+		Region:   config.GetConfigValue("AWS_REGION"),
+		Endpoint: config.GetConfigValue("AWS_ENDPOINT"),
+		Prefix:   config.GetConfigValue("AWS_SECRET_PREFIX"),
+		Batch:    config.GetConfigValue("AWS_SECRET_BATCH"),
+		Keys: []string{
+			"JWT_PUBLIC_KEY",
+			"JWT_PRIVATE_KEY",
+			"JWT_AUDIENCE",
+			"JWT_ISSUER",
+			"JWT_KID",
+			"ADDRESS_PROVIDER_API_KEY",
+			"MAX_CONTENT_LENGTH",
+			"RATE_LIMIT_RPS",
+			"RATE_LIMIT_BURST",
+		},
+	}); err != nil {
+		logger.Fatal("failed to initialize secrets manager", err)
+		os.Exit(1)
+	}
+
+	if err := jwt.InitializeKeys(); err != nil {
+		logger.Fatal("failed to initialize JWT keys", err)
+		os.Exit(1)
+	}
+
+	logger.Info("address-api: bootstrap complete")
+}
+
 func main() {
-	env := os.Getenv("ENV")
-
-	// Set ENV specific config
-  switch strings.ToLower(env) {
-		case "dev":
-			gin.SetMode(gin.DebugMode)
-		case "staging", "prod":
-			var secretName string
-
-			if env == "staging" {
-				secretName = "staging/db/password"
-			} else {
-				secretName = "prod/db/password"
-			}
-
-			secret, err := aws.GetSecret(secretName)
-
-			if err != nil {
-        log.Fatalf("failed to load secret: %v", err)
-      }
-
-      os.Setenv("DB_PASSWORD", secret)
-			gin.SetMode(gin.ReleaseMode)
-		default:
-			log.Fatal("ENV is not set")
+	stack := []func(http.Handler) http.Handler{
+		mw.RequestIDMiddleware,
+		mw.TelemetryMiddleware,
+		mw.RateLimiterMiddleware,
+		mw.CORSMiddleware,
+		mw.SecurityHeadersMiddleware,
+		mw.AuthMiddleware,
+		mw.NormalizationMiddleware,
+		mw.RuleValidationMiddleware,
+		mw.SanitizationMiddleware,
 	}
 
-	router := gin.New()
+	mux := http.NewServeMux()
 
-	// Gin middleware
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
+	mux.HandleFunc("GET /health", handlers.Health)
+	mux.Handle("POST /addresses/validate", mw.Chain(handlers.Validate, stack...))
+	mux.Handle("POST /addresses/normalize", mw.Chain(handlers.Normalize, stack...))
+	mux.Handle("POST /addresses/geocode", mw.Chain(handlers.Geocode, stack...))
 
-	// Custom authentication middleware
-	validateTokenURL := os.Getenv("AUTH_SERVICE_VALIDATE_URL")
-	if validateTokenURL == "" {
-		log.Fatal("AUTH_SERVICE_VALIDATE_URL is not set")
-	}
-
-	// Authentication middleware
-	router.Use(func(ctx *gin.Context) {
-		if err := internal_mw.AuthMiddleware(validateTokenURL, ctx); err != nil {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-			return
-		}
-		ctx.Next()
-	})
-
-	// Define routes
-	router.GET("/health", func(ctx *gin.Context) {
-		handlers.HandleHealth(ctx)
-	})
-	router.POST("/validate", func(ctx *gin.Context) {
-		handlers.HandleValidate(ctx)
-	})
-	router.POST("/normalize", func(ctx *gin.Context) {
-		handlers.HandleNormalize(ctx)
-	})
-	router.POST("/geocode", func(ctx *gin.Context) {
-		handlers.HandleGeocode(ctx)
-	})
-
-	serverAddress := ":7031"
-	if port := os.Getenv("PORT"); strings.TrimSpace(port) != "" {
-		serverAddress = ":" + port
-	}
-
-	srv := &http.Server{
-		Addr:              serverAddress,
-		Handler:           router,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      15 * time.Second,
+	server := &http.Server{
+		Handler:           mux,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: 2 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
-	// Graceful shutdown
-	go func() {
-		log.Printf("komodo-address-api listening on %s", serverAddress)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("server error: %v", err)
-		}
-	}()
-
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
-	defer cancel()
-
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("graceful shutdown failed: %v", err)
-	}
-	log.Println("server stopped")
+	srv.Run(server, config.GetConfigValue("PORT"), 30*time.Second)
 }

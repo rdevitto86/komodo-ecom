@@ -26,6 +26,7 @@ const (
 	IS_ADMIN_KEY          ctxKey = "is_admin"
 	IDEMPOTENCY_KEY       ctxKey = "idempotency_key"
 	IDEMPOTENCY_VALID_KEY ctxKey = "idempotency_key_valid"
+	CORRELATION_ID_KEY   ctxKey = "correlation_id"
 	CSRF_TOKEN_KEY      	ctxKey = "csrf_token"
 	CSRF_VALID_KEY      	ctxKey = "csrf_token_valid"
 	LOGGER_KEY          	ctxKey = "logger"

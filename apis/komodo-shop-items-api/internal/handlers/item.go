@@ -8,6 +8,8 @@ import (
 	httpErr "komodo-forge-sdk-go/http/errors"
 	shopitems "komodo-forge-sdk-go/http/services/shop_items"
 	logger "komodo-forge-sdk-go/logging/runtime"
+
+	"komodo-shop-items-api/pkg/v1/models"
 )
 
 // Returns a single item (product or service) by SKU
@@ -16,14 +18,14 @@ func GetItemBySKU(wtr http.ResponseWriter, req *http.Request) {
 
 	sku := req.PathValue("sku")
 	if sku == "" {
-		httpErr.SendError(wtr, req, httpErr.ShopItem.InvalidSKU, httpErr.WithDetail("sku path parameter is required"))
+		httpErr.SendError(wtr, req, models.Err.InvalidSKU, httpErr.WithDetail("sku path parameter is required"))
 		return
 	}
 
 	bucket := config.GetConfigValue("S3_ITEMS_BUCKET")
 	if bucket == "" {
 		logger.Error("S3_ITEMS_BUCKET not configured", nil)
-		httpErr.SendError(wtr, req, httpErr.ShopItem.StorageError, httpErr.WithDetail("storage not configured"))
+		httpErr.SendError(wtr, req, models.Err.StorageError, httpErr.WithDetail("storage not configured"))
 		return
 	}
 
@@ -43,5 +45,5 @@ func GetItemBySKU(wtr http.ResponseWriter, req *http.Request) {
 	}
 
 	logger.Warn("item not found for sku: " + sku)
-	httpErr.SendError(wtr, req, httpErr.ShopItem.ItemNotFound, httpErr.WithDetail("no product or service found for sku: "+sku))
+	httpErr.SendError(wtr, req, models.Err.ItemNotFound, httpErr.WithDetail("no product or service found for sku: "+sku))
 }

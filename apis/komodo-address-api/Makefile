@@ -13,7 +13,7 @@ BUILD_DIR := build
 # Compose (base + overlay)
 COMPOSE_FILE := $(BUILD_DIR)/docker-compose.$(ENV).yaml
 
-.PHONY: local build run bootstrap stop deploy_staging deploy_prod restart clean test_all test_unit test_int test_e2e fmt
+.PHONY: local build run bootstrap stop deploy_staging deploy_prod restart clean test_all test_unit test_int test_e2e fmt lint
 
 help:
 	@echo "Targets:"
@@ -28,6 +28,7 @@ help:
 	@echo "  test_int          Run integration tests"
 	@echo "  test_e2e          Run end-to-end tests"
 	@echo "  fmt               Run go fmt and go vet"
+	@echo "  lint              Run golangci-lint"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build ENV=prod"
@@ -88,3 +89,6 @@ test_e2e:
 
 fmt:
 	go fmt ./... && go vet ./...
+
+lint:
+	@golangci-lint run ./...

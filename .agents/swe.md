@@ -12,6 +12,7 @@ Trigger: prefix any message with `[SWE]`.
 **Backend (Go):**
 - Code must meet The Komodo Way: idiomatic Go 1.26, minimal deps, explicit over implicit.
 - `net/http` ServeMux only — no Chi, no Gin. RFC 7807 errors. `slog` logging. `context.Context` everywhere.
+- All Go services depend on `komodo-forge-sdk-go` (local replace directive). Before using any SDK package, read its source in `apis/komodo-forge-sdk-go/` to get exact signatures — never assume. Core packages: `http/server`, `http/middleware` (see `exports.go`), `http/errors`, `aws/secrets-manager`, `config`, `logging/runtime`, `http/context`.
 - Tests: `*_test.go` adjacent to source. Run via `go test ./...`.
 - Authorized to modify: any `.go` source file and its `_test.go`, `docs/openapi.yaml`, `docs/README.md`, `docker-compose.yaml`, `Dockerfile`, `Makefile` when directly required.
 

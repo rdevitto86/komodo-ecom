@@ -85,3 +85,19 @@ logs:
 ps:
     #!/usr/bin/env bash
     {{COMPOSE}} --profile infra --profile api --profile ui --profile support ps
+
+# Run golangci-lint across all Go services
+lint:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    failed=()
+    for svc in apis/*/; do
+        [ -f "${svc}go.mod" ] || continue
+        echo "── ${svc}"
+        (cd "${svc}" && golangci-lint run ./...) || failed+=("${svc}")
+    done
+    if [ ${#failed[@]} -gt 0 ]; then
+        echo ""
+        echo "Lint failed in: ${failed[*]}"
+        exit 1
+    fi

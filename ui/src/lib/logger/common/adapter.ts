@@ -10,7 +10,6 @@ export type LoggingAdapterConfig = {
 }
 
 export abstract class LoggingAdapter {
-  protected worker: WorkerHandler | null = null;
   protected provider: LogProviderType;
   protected limit: number;
   protected interval: number;
@@ -18,18 +17,16 @@ export abstract class LoggingAdapter {
 
   constructor(config: LoggingAdapterConfig) {
     this.provider = config.provider;
-    this.limit = config.limit;
+    this.limit    = config.limit;
     this.interval = config.interval;
     this.endpoint = config.endpoint;
-    this.worker = WorkerHandler.init();
-    
-    if (this.worker) {
-      WorkerHandler.config(this.provider, {
-        limit: this.limit,
-        interval: this.interval,
-        endpoint: this.endpoint
-      });
-    }
+
+    WorkerHandler.init();
+    WorkerHandler.config(this.provider, {
+      limit:    this.limit,
+      interval: this.interval,
+      endpoint: this.endpoint,
+    });
   }
 
   send(payload: any): void {

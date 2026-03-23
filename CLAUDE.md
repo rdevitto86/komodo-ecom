@@ -72,15 +72,25 @@ Individual service composes (`apis/<service>/docker-compose.yaml`) still work st
 2. Pull other `docs/` files only if directly relevant (e.g. `data-model.md` for DynamoDB work, `openapi.yaml` for contract questions).
 3. Do not read sibling service directories unless the task explicitly spans services.
 4. Fall back to this file only for monorepo-wide conventions.
+5. When using forge SDK packages, read the relevant source in `apis/komodo-forge-sdk-go/` — do not guess signatures. Key packages:
+   - `http/server` — `server.Run` (Lambda/HTTP universal entrypoint)
+   - `http/middleware` — `middleware.Chain`, auth, rate-limiter, request-id, CORS, etc. (see `http/middleware/exports.go`)
+   - `http/errors` — `httpErr.SendError`, error codes (`Global`, `Auth`, `User`, `Payment`, etc.)
+   - `aws/secrets-manager` — `secretsmanager.Bootstrap`, `GetSecret`, `GetSecrets`
+   - `config` — `config.GetConfigValue`, `SetConfigValue`
+   - `logging/runtime` — `logger.Info`, `logger.Error`, `logger.Warn`
+   - `http/context` — context keys (`USER_ID_KEY`, `SESSION_ID_KEY`, `SCOPES_KEY`, etc.)
 
 **Working inside the frontend (`ui/`):**
 1. Read `ui/docs/` for architecture and design context.
 2. `ui/CLAUDE.md` is the authoritative context file for that workspace.
+3. When using forge SDK types or API clients, read `apis/komodo-forge-sdk-ts/` for exact shapes — do not guess.
 
 **Working at the monorepo root:**
 - Use root `README.md` as the service registry.
 - Backend services live under `apis/komodo-*`. Frontend lives under `ui/`.
 - Shared SDKs live under `apis/komodo-forge-sdk-go` and `apis/komodo-forge-sdk-ts`.
+- Root `docs/` contains monorepo-wide and cross-service documentation (audit logging, ADRs, platform decisions). Check here before writing new platform-level docs.
 
 ---
 
@@ -115,13 +125,14 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 | `auth-api` | EC2 docker-compose | Ready — `deploy/ec2/` |
 | `user-api` | EC2 docker-compose | Ready — `deploy/ec2/` |
 | `shop-items-api` | EC2 docker-compose | Ready — `deploy/ec2/` |
+| `cart-api` | EC2 docker-compose | Scaffolded — docs complete |
+| `inventory-api` | Lambda | Scaffolded — TODO: implement |
 | `address-api` | Lambda | TODO: add Lambda handler |
 | `order-api` | Lambda | TODO: add Lambda handler |
 | `payments-api` | Lambda | TODO: add Lambda handler |
 | `communications-api` | Lambda | TODO: add Lambda handler |
-| `analytics-collector-api` | Lambda | TODO: add Lambda handler |
-| `core-features-api` | Lambda | TODO: add Lambda handler |
-| `core-entitlements-api` | Lambda | TODO: add Lambda handler |
+| `features-api` | Lambda | TODO: add Lambda handler |
+| `entitlements-api` | Lambda | TODO: add Lambda handler |
 
 **Scale-up path:** `infra/deploy/cfn/` templates are ready. When EC2 hits its ceiling, run `deploy-infra.sh` + `deploy-services.sh` to migrate to ECS Fargate. No code changes required.
 
@@ -130,7 +141,7 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 ## Conventions
 - **Routing:** `net/http` ServeMux pattern syntax — `GET /me/profile`, `DELETE /me/profile/{id}`
 - **Errors:** RFC 7807 Problem+JSON. Wrap: `fmt.Errorf("op: %w", err)`
-- **Logging:** `slog` JSON. `tint` locally, JSON in staging/prod
+- **Logging:** `slog` JSON. `KomodoTextHandler` locally (string format + ANSI color), JSON in staging/prod. Use `logger.FromContext(ctx)` to attach requestId/correlationId/userId/sessionId.
 - **Auth:** JWT validated via forge SDK middleware on all protected routes
 - **Context:** `context.Context` through every layer — handler → service → repo
 - **DI:** Constructor functions, accept interfaces, return structs
@@ -147,15 +158,15 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 
 | Range | Domain | Assigned | Reserved |
 |-------|--------|----------|---------|
-| 7001–7010 | Frontend & Infrastructure | 7001 `ui`, 7003 `ssr-engine-svelte` | 7002, 7004–7010 |
+| 7001–7010 | Frontend & Infrastructure | 7001 `ui`, 7002 `events-api`, 7003 `ssr-engine-svelte` | 7004–7010 |
 | 7011–7020 | Identity & Security | 7011 `auth-api` pub, 7012 `auth-api` int | 7013–7020 |
-| 7021–7030 | Core Platform | 7021 `core-entitlements-api`, 7022 `core-features-api` | 7023–7030 |
+| 7021–7030 | Core Platform | 7021 `entitlements-api`, 7022 `features-api` | 7023–7030 |
 | 7031–7040 | Address & Geo | 7031 `address-api` | 7032–7040 |
-| 7041–7050 | Commerce & Catalog | 7041 `shop-items-api`, 7042 `search-api` | 7043–7050 |
+| 7041–7050 | Commerce & Catalog | 7041 `shop-items-api`, 7042 `search-api`, 7043 `cart-api`, 7044 `inventory-api` | 7045–7050 |
 | 7051–7060 | User & Profile | 7051 `user-api` pub, 7052 `user-api` int | 7053–7060 |
-| 7061–7070 | Orders | 7061 `order-api` | 7062–7070 |
+| 7061–7070 | Orders | 7061 `order-api`, 7062 `returns-api` | 7063–7070 |
 | 7071–7080 | Payments | 7071 `payments-api` | 7072–7080 |
 | 7081–7090 | Communications | 7081 `communications-api` | 7082–7090 |
 | 7091–7100 | Loyalty & Social | 7091 `loyalty-api`, 7092 `reviews-api` | 7093–7100 |
 | 7101–7110 | Support & CX | 7101 `support-api` | 7102–7110 |
-| 7111–7120 | Analytics & Discovery | 7111 `analytics-collector-api` | 7112–7120 |
+| 7111–7120 | Analytics & Discovery | — | 7111–7120 |

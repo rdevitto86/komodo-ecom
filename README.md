@@ -69,19 +69,22 @@ cd ui && bun run dev:mock    # mock mode (no backend needed)
 | 7001 | `ui` | `ui/` | Frontend shell (SvelteKit host app) | Active |
 | 7003 | `komodo-ssr-engine-svelte` | `apis/` | SSR backend — pre-renders/caches component trees, delivers HTML fragments to `ui` as slots | Active |
 | 7011 | `komodo-auth-api` | `apis/` | Identity & Security | Active |
-| 7021 | `komodo-core-entitlements-api` | `apis/` | Core Platform | Stub |
-| 7022 | `komodo-core-features-api` | `apis/` | Core Platform | Stub |
+| 7021 | `komodo-entitlements-api` | `apis/` | Core Platform | Stub |
+| 7022 | `komodo-features-api` | `apis/` | Core Platform | Stub |
+| 7002 | `komodo-events-api` | `apis/` | Infrastructure | Scaffolded (not deployed) |
 | 7031 | `komodo-address-api` | `apis/` | Address & Geo | Active |
 | 7041 | `komodo-shop-items-api` | `apis/` | Commerce & Catalog | Active |
 | 7042 | `komodo-search-api` | `apis/` | Commerce & Catalog | Stub |
+| 7043 | `komodo-cart-api` | `apis/` | Commerce & Catalog | Scaffolded |
+| 7044 | `komodo-inventory-api` | `apis/` | Commerce & Catalog | Scaffolded |
 | 7051 | `komodo-user-api` | `apis/` | User & Profile | Active |
 | 7061 | `komodo-order-api` | `apis/` | Orders | Scaffolded |
+| 7062 | `komodo-returns-api` | `apis/` | Orders | Scaffolded (not deployed) |
 | 7071 | `komodo-payments-api` | `apis/` | Payments | Scaffolded |
 | 7081 | `komodo-communications-api` | `apis/` | Communications | Scaffolded |
 | 7091 | `komodo-loyalty-api` | `apis/` | Loyalty & Social | Scaffolded |
 | 7092 | `komodo-reviews-api` | `apis/` | Loyalty & Social | Scaffolded |
 | 7101 | `komodo-support-api` | `apis/` | Support & CX | Scaffolded |
-| 7111 | `komodo-analytics-collector-api` | `apis/` | Analytics | Stub |
 
 > Port override: set the `PORT` env var on any service.
 

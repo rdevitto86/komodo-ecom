@@ -30,7 +30,7 @@ else
 	LOG_LEVEL := debug
 endif
 
-.PHONY: build run bootstrap stop restart clean test_all test_unit test_e2e
+.PHONY: build run bootstrap stop restart clean test_all test_unit test_e2e lint
 
 help:
 	@echo "Targets:"
@@ -43,6 +43,7 @@ help:
 	@echo "  test              Run all tests"
 	@echo "  test_unit         Run unit tests"
 	@echo "  test_e2e          Run end-to-end tests"
+	@echo "  lint              Run golangci-lint"
 	@echo ""
 	@echo "Supported Environments:"
 	@echo "  local    - Local development (no AWS)"
@@ -101,3 +102,6 @@ test: go test ./... -race
 test_unit: go test -short ./...
 
 test_e2e: go test -tags=e2e ./...
+
+lint:
+	@golangci-lint run ./...

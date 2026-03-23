@@ -69,9 +69,8 @@ Lambda cannot provide.
 
 | Exception | Compute | Reason |
 |-----------|---------|--------|
-| `komodo-analytics-collector-api` | Lambda | Write-only event sink, bursty, no dual-port |
-| `komodo-core-features-api` | Lambda | Read-only flag evaluation, cacheable at edge |
-| `komodo-core-entitlements-api` | Lambda | Read-only entitlement checks |
+| `komodo-features-api` | Lambda | Read-only flag evaluation, cacheable at edge |
+| `komodo-entitlements-api` | Lambda | Read-only entitlement checks |
 
 Cost controls on Fargate: Fargate Spot on dev/stg (up to 70% savings). Set desired
 count to 0 on dev when idle. Single NAT Gateway (not per-AZ) on non-prod.

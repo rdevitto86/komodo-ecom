@@ -1,10 +1,13 @@
-import logger from '../';
+import type { LogEventType } from './schema';
 
-export type LogProviderType = 'splunk' | 'otel' | 'clickstream';
+export type LogProviderType = LogEventType; // 'runtime' | 'clickstream' | 'interaction' | 'telemetry'
+
 export type WorkerDirectives = 'CONFIG' | 'CONFIG_ACK' | 'LOG' | 'LOG_ACK' | 'FLUSH' | 'FLUSH_ACK' | 'STOP' | 'ERROR';
 export type WorkerMessagePayload = { provider: LogProviderType; data: any };
 
-// TODO - rehydrate logs from localStorage
+// Single unified log endpoint — the server route logs to stdout (CloudWatch picks it up).
+// In static/mock mode this endpoint doesn't exist; the worker handles the failure gracefully.
+export const LOG_ENDPOINT = '/api/log';
 
 export class WorkerHandler {
   static #instance: WorkerHandler | null = null;
@@ -39,7 +42,6 @@ export class WorkerHandler {
   static stop() {
     if (!this.#worker) return;
     this.#worker.postMessage({ directive: 'STOP' });
-    logger.info('Log worker stopped');
     this.#worker = null;
   }
 
@@ -64,28 +66,30 @@ export class WorkerHandler {
     this.#worker = new Worker(new URL('./handler.worker.ts', import.meta.url), { type: 'module' });
 
     this.#worker.onmessage = ({ data: { directive, provider, payload } }) => {
-      switch (directive) {          
+      switch (directive) {
         case 'ERROR':
-          logger.error(`${provider} logger error`, payload?.error || payload);
+          // Log to console only — do NOT re-send to the worker to avoid loops
+          console.error(`[komodo-logger] ${provider} worker error`, payload?.error || payload);
           break;
-          
-        case 'STOP':
+
+        case 'STOP': {
           const lostCounts = payload || {};
           const lostProviders = Object.entries(lostCounts)
-            .filter(([_, count]) => (count as number) > 0)
+            .filter(([, count]) => (count as number) > 0)
             .map(([p, count]) => `${p}: ${count}`);
-          
+
           if (lostProviders.length > 0) {
-            logger.warn(`Log worker stopped with unsent logs: ${lostProviders.join(', ')}`);
-          } else {
-            logger.info('Log worker stopped cleanly');
+            console.warn(`[komodo-logger] worker stopped with unsent logs: ${lostProviders.join(', ')}`);
           }
           break;
+        }
       }
     };
 
-    this.#worker.onerror = (error) => logger.error('Log worker error', error);
-    
+    this.#worker.onerror = (error) => {
+      console.error('[komodo-logger] worker fatal error', error);
+    };
+
     return this.#worker;
   }
 }

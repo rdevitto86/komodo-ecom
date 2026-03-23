@@ -1,0 +1,40 @@
+name: komodo-events-api
+
+services:
+  events-api:
+    image: ${APP_NAME}:${VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: komodo-events-api/Dockerfile
+      args:
+        DISTROLESS_TAG: ${DISTROLESS_TAG:-debug}
+    restart: ${RESTART_POLICY:-no}
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_LIMIT:-256M}
+    environment:
+      APP_NAME: ${APP_NAME}
+      ENV: ${ENV}
+      PORT: :7002
+      VERSION: ${VERSION}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ENDPOINT: ${AWS_ENDPOINT}
+      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
+      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH}
+    ports:
+      - "7002:7002"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - komodo-network
+
+networks:
+  komodo-network:
+    external: true

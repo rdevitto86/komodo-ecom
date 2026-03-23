@@ -1,0 +1,409 @@
+openapi: "3.1.0"
+info:
+  title: komodo-cart-api
+  version: "1.0.0"
+  description: Shopping cart service — guest and authenticated cart management with checkout stock hold coordination.
+servers:
+  - url: http://localhost:7043
+    description: Local dev
+
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: OK
+
+  /me/cart:
+    get:
+      summary: Get authenticated user's cart
+      operationId: getMyCart
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Cart retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      summary: Clear authenticated user's cart
+      operationId: clearMyCart
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Cart cleared
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/cart/items:
+    post:
+      summary: Add item to authenticated cart
+      operationId: addMyCartItem
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddItemRequest"
+      responses:
+        "201":
+          description: Item added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/cart/items/{itemId}:
+    put:
+      summary: Update item quantity in authenticated cart
+      operationId: updateMyCartItem
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateItemRequest"
+      responses:
+        "200":
+          description: Item updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Remove item from authenticated cart
+      operationId: deleteMyCartItem
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "204":
+          description: Item removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /me/cart/checkout:
+    post:
+      summary: Initiate checkout — places stock holds, returns checkout token
+      operationId: initiateCheckout
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Checkout initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Insufficient stock for one or more items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /cart:
+    post:
+      summary: Create a guest cart
+      operationId: createGuestCart
+      security: []
+      responses:
+        "201":
+          description: Guest cart created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+
+  /cart/{cartId}:
+    get:
+      summary: Get guest cart
+      operationId: getGuestCart
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CartId"
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Cart retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Clear guest cart
+      operationId: clearGuestCart
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CartId"
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "204":
+          description: Cart cleared
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cart/{cartId}/items:
+    post:
+      summary: Add item to guest cart
+      operationId: addGuestCartItem
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CartId"
+        - $ref: "#/components/parameters/SessionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddItemRequest"
+      responses:
+        "201":
+          description: Item added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /cart/{cartId}/items/{itemId}:
+    put:
+      summary: Update item quantity in guest cart
+      operationId: updateGuestCartItem
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CartId"
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateItemRequest"
+      responses:
+        "200":
+          description: Item updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Remove item from guest cart
+      operationId: deleteGuestCartItem
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CartId"
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "204":
+          description: Item removed
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    CartId:
+      name: cartId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: string
+    SessionId:
+      name: X-Session-ID
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Guest session token (set by client on cart creation, stored in cookie)
+
+  schemas:
+    Cart:
+      type: object
+      required: [id, items, subtotal_cents, item_count, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          description: Present for authenticated carts only
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItem"
+        subtotal_cents:
+          type: integer
+          description: Sum of (unit_price_cents * quantity) for all items
+        item_count:
+          type: integer
+        updated_at:
+          type: string
+          format: date-time
+
+    CartItem:
+      type: object
+      required: [item_id, sku, quantity, unit_price_cents, name]
+      properties:
+        item_id:
+          type: string
+          description: Product ID from shop-items-api
+        sku:
+          type: string
+          description: Variant SKU
+        name:
+          type: string
+          description: Product name snapshot at add-time
+        quantity:
+          type: integer
+          minimum: 1
+        unit_price_cents:
+          type: integer
+          description: Price snapshot at add-time
+        image_url:
+          type: string
+
+    AddItemRequest:
+      type: object
+      required: [item_id, sku, quantity]
+      properties:
+        item_id:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+
+    UpdateItemRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity:
+          type: integer
+          minimum: 0
+          description: Set to 0 to remove the item
+
+    CheckoutResponse:
+      type: object
+      required: [checkout_token, expires_at, items]
+      properties:
+        checkout_token:
+          type: string
+          description: Short-lived token passed to order-api to confirm purchase
+        expires_at:
+          type: string
+          format: date-time
+          description: When the stock holds expire (CART_HOLD_TTL_SEC from now)
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItem"
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Forbidden:
+      description: Session token does not match cart
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Cart or item not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

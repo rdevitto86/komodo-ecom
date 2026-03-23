@@ -29,7 +29,7 @@ Agent profiles live at the monorepo root in `.claude/agents/`. See root `CLAUDE.
 
 ## Tech Stack
 - **Framework:** SvelteKit 5 + TypeScript (bun runtime)
-- **Adapter:** `adapter-static` — SPA mode with `fallback: 'index.html'` for S3/CloudFront demo. Switch to `adapter-node` when wiring real backend.
+- **Adapter:** `adapter-node` is the target state. Currently using `adapter-static` as a temporary low-cost hosting bootstrap (S3/CloudFront). All new code should be written for `adapter-node` — server routes, load functions, and BFF patterns are the standard.
 - **Styling:** Tailwind CSS v4 (vite plugin), `tw-animate-css`, `class-variance-authority`, `tailwind-merge`
 - **3D / Animation:** Threlte (Three.js), GSAP, Lenis (smooth scroll), Postprocessing
 - **Auth:** JWT RS256 via `komodo-auth-api` (7011). Validated server-side in `+layout.server.ts`.

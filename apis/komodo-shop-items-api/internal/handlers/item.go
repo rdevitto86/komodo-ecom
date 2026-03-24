@@ -6,9 +6,9 @@ import (
 
 	"komodo-forge-sdk-go/config"
 	httpErr "komodo-forge-sdk-go/http/errors"
-	shopitems "komodo-forge-sdk-go/http/services/shop_items"
 	logger "komodo-forge-sdk-go/logging/runtime"
 
+	"komodo-shop-items-api/pkg/v1/client"
 	"komodo-shop-items-api/pkg/v1/models"
 )
 
@@ -30,14 +30,14 @@ func GetItemBySKU(wtr http.ResponseWriter, req *http.Request) {
 	}
 
 	// Try product first, then fall back to service
-	product, err := shopitems.FetchProductBySKU(req.Context(), bucket, sku)
+	product, err := client.FetchProductBySKU(req.Context(), bucket, sku)
 	if err == nil {
 		wtr.WriteHeader(http.StatusOK)
 		json.NewEncoder(wtr).Encode(product)
 		return
 	}
 
-	service, err := shopitems.FetchServiceBySKU(req.Context(), bucket, sku)
+	service, err := client.FetchServiceBySKU(req.Context(), bucket, sku)
 	if err == nil {
 		wtr.WriteHeader(http.StatusOK)
 		json.NewEncoder(wtr).Encode(service)

@@ -1,0 +1,882 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Komodo – Event Pipeline Stack.
+  Creates SNS FIFO topics (one per domain), SQS FIFO subscriber queues with DLQs,
+  CloudWatch alarms on DLQ depth, the CDC Lambda function, and DynamoDB Stream
+  event source mappings.
+
+  Naming conventions:
+    SNS topics:  komodo-<domain>-events-<env>.fifo
+    SQS queues:  komodo-<domain>-events-<consumer>-<env>.fifo
+    DLQs:        komodo-<domain>-events-<consumer>-<env>-dlq.fifo
+
+  Depends on: komodo-infra-<env> stack (imports UsersTableStreamArn via Fn::ImportValue).
+  EventSourceMappings for orders/payments/cart/inventory are gated behind optional
+  parameters — supply the stream ARN to activate them.
+
+  TODO: as each service's DynamoDB table is added to infra.yaml, export its
+  StreamArn there and switch the corresponding parameter here to use Fn::ImportValue.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+
+  Environment:
+    Type: String
+    AllowedValues: [dev, stg, prod]
+    Description: Deployment environment
+
+  AWSAccountId:
+    Type: String
+    Description: AWS Account ID (used to construct ECR and SNS ARNs)
+
+  AWSRegion:
+    Type: String
+    Default: us-east-1
+
+  CDCImageTag:
+    Type: String
+    Default: latest
+    Description: >
+      ECR image tag for the CDC Lambda container.
+      Build from apis/komodo-event-bus-api with Dockerfile.cdc targeting cmd/cdc.
+      TODO: wire this to the CI pipeline image tag once the CDC Lambda is deployed.
+
+  # DynamoDB Stream ARNs
+  # UsersTableStreamArn is imported from the infra stack (stream already enabled).
+  # The remaining ARNs are optional — supply them once the corresponding service
+  # table exists in infra.yaml with StreamSpecification: NEW_AND_OLD_IMAGES.
+
+  OrdersTableStreamArn:
+    Type: String
+    Default: ""
+    Description: DynamoDB Stream ARN for the orders table. Leave blank until table exists.
+
+  PaymentsTableStreamArn:
+    Type: String
+    Default: ""
+    Description: DynamoDB Stream ARN for the payments table. Leave blank until table exists.
+
+  CartTableStreamArn:
+    Type: String
+    Default: ""
+    Description: DynamoDB Stream ARN for the cart table. Leave blank until table exists.
+
+  InventoryTableStreamArn:
+    Type: String
+    Default: ""
+    Description: DynamoDB Stream ARN for the inventory table. Leave blank until table exists.
+
+  DLQAlarmThreshold:
+    Type: Number
+    Default: 1
+    Description: Messages visible in a DLQ before the CloudWatch alarm fires.
+
+  AlarmEmail:
+    Type: String
+    Default: ""
+    Description: Email address to notify on DLQ alarms. Leave blank to skip subscription.
+
+# ---------------------------------------------------------------------------
+# Conditions
+# ---------------------------------------------------------------------------
+Conditions:
+  HasOrdersStream:   !Not [!Equals [!Ref OrdersTableStreamArn,   ""]]
+  HasPaymentsStream: !Not [!Equals [!Ref PaymentsTableStreamArn, ""]]
+  HasCartStream:     !Not [!Equals [!Ref CartTableStreamArn,     ""]]
+  HasInventoryStream: !Not [!Equals [!Ref InventoryTableStreamArn, ""]]
+  HasAlarmEmail:     !Not [!Equals [!Ref AlarmEmail, ""]]
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ── Alarm Notification Topic ────────────────────────────────────────────────
+  # Standard SNS topic — CloudWatch publishes alarm state changes here.
+
+  AlarmNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub komodo-pipeline-alarms-${Environment}
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  AlarmEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlarmEmail
+    Properties:
+      Protocol: email
+      TopicArn: !Ref AlarmNotificationTopic
+      Endpoint: !Ref AlarmEmail
+
+  # ── SNS FIFO Topics (one per domain) ────────────────────────────────────────
+  # All events for a domain flow through one topic. Subscribers use SNS filter
+  # policies on the event_type message attribute to receive only what they need.
+  # ContentBasedDeduplication is disabled — the CDC handler supplies explicit
+  # MessageDeduplicationId (the event UUID) on every publish call.
+
+  OrderEventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub komodo-order-events-${Environment}.fifo
+      FifoTopic: true
+      ContentBasedDeduplication: false
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  UserEventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub komodo-user-events-${Environment}.fifo
+      FifoTopic: true
+      ContentBasedDeduplication: false
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  PaymentEventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub komodo-payment-events-${Environment}.fifo
+      FifoTopic: true
+      ContentBasedDeduplication: false
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  CartEventsTopic:
+    # TODO: add subscriber queues once cart event consumers are defined.
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub komodo-cart-events-${Environment}.fifo
+      FifoTopic: true
+      ContentBasedDeduplication: false
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  InventoryEventsTopic:
+    # TODO: add subscriber queues once inventory event consumers are defined.
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub komodo-inventory-events-${Environment}.fifo
+      FifoTopic: true
+      ContentBasedDeduplication: false
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── SQS FIFO DLQs ───────────────────────────────────────────────────────────
+  # FIFO DLQs are required for FIFO source queues (SQS enforces this).
+  # MaxReceiveCount: 3 — a message is dead-lettered after 3 failed deliveries.
+  # MessageRetentionPeriod: 14 days (1209600s) — maximum retention for investigation.
+
+  OrderEventsInventoryDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-order-events-inventory-${Environment}-dlq.fifo
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  OrderEventsCommunicationsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-order-events-communications-${Environment}-dlq.fifo
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  OrderEventsLoyaltyDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-order-events-loyalty-${Environment}-dlq.fifo
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  PaymentEventsOrderDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-payment-events-order-${Environment}-dlq.fifo
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  PaymentEventsCommunicationsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-payment-events-communications-${Environment}-dlq.fifo
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  UserEventsLoyaltyDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-user-events-loyalty-${Environment}-dlq.fifo
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  UserEventsCommunicationsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-user-events-communications-${Environment}-dlq.fifo
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── SQS FIFO Queues (per subscriber) ────────────────────────────────────────
+  # VisibilityTimeout: 300s — match or exceed the Lambda/consumer processing timeout.
+  # ContentBasedDeduplication: false — SNS forwards the explicit MessageDeduplicationId.
+
+  OrderEventsInventoryQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-order-events-inventory-${Environment}.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OrderEventsInventoryDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  OrderEventsCommunicationsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-order-events-communications-${Environment}.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OrderEventsCommunicationsDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  OrderEventsLoyaltyQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-order-events-loyalty-${Environment}.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OrderEventsLoyaltyDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  PaymentEventsOrderQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-payment-events-order-${Environment}.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PaymentEventsOrderDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  PaymentEventsCommunicationsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-payment-events-communications-${Environment}.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PaymentEventsCommunicationsDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  UserEventsLoyaltyQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-user-events-loyalty-${Environment}.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt UserEventsLoyaltyDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  UserEventsCommunicationsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-user-events-communications-${Environment}.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt UserEventsCommunicationsDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── SQS Queue Policies ───────────────────────────────────────────────────────
+  # Each queue needs a resource policy allowing its SNS topic to call SendMessage.
+  # The aws:SourceArn condition prevents confused-deputy attacks.
+
+  OrderEventsQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref OrderEventsInventoryQueue
+        - !Ref OrderEventsCommunicationsQueue
+        - !Ref OrderEventsLoyaltyQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: sqs:SendMessage
+            Resource:
+              - !GetAtt OrderEventsInventoryQueue.Arn
+              - !GetAtt OrderEventsCommunicationsQueue.Arn
+              - !GetAtt OrderEventsLoyaltyQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref OrderEventsTopic
+
+  PaymentEventsQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref PaymentEventsOrderQueue
+        - !Ref PaymentEventsCommunicationsQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: sqs:SendMessage
+            Resource:
+              - !GetAtt PaymentEventsOrderQueue.Arn
+              - !GetAtt PaymentEventsCommunicationsQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref PaymentEventsTopic
+
+  UserEventsQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref UserEventsLoyaltyQueue
+        - !Ref UserEventsCommunicationsQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: sqs:SendMessage
+            Resource:
+              - !GetAtt UserEventsLoyaltyQueue.Arn
+              - !GetAtt UserEventsCommunicationsQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref UserEventsTopic
+
+  # ── SNS → SQS Subscriptions ─────────────────────────────────────────────────
+  # RawMessageDelivery: true — consumers receive the event envelope JSON directly,
+  # without the SNS notification wrapper. Requires the queue to be FIFO.
+  # TODO: add FilterPolicy per subscription once consumer requirements are confirmed.
+  # Example: inventory-api only needs order.created and order.cancelled, not order.fulfilled.
+
+  OrderEventsInventorySubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref OrderEventsTopic
+      Endpoint: !GetAtt OrderEventsInventoryQueue.Arn
+      RawMessageDelivery: true
+
+  OrderEventsCommunicationsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref OrderEventsTopic
+      Endpoint: !GetAtt OrderEventsCommunicationsQueue.Arn
+      RawMessageDelivery: true
+
+  OrderEventsLoyaltySubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref OrderEventsTopic
+      Endpoint: !GetAtt OrderEventsLoyaltyQueue.Arn
+      RawMessageDelivery: true
+
+  PaymentEventsOrderSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref PaymentEventsTopic
+      Endpoint: !GetAtt PaymentEventsOrderQueue.Arn
+      RawMessageDelivery: true
+
+  PaymentEventsCommunicationsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref PaymentEventsTopic
+      Endpoint: !GetAtt PaymentEventsCommunicationsQueue.Arn
+      RawMessageDelivery: true
+
+  UserEventsLoyaltySubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref UserEventsTopic
+      Endpoint: !GetAtt UserEventsLoyaltyQueue.Arn
+      RawMessageDelivery: true
+
+  UserEventsCommunicationsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref UserEventsTopic
+      Endpoint: !GetAtt UserEventsCommunicationsQueue.Arn
+      RawMessageDelivery: true
+
+  # ── CloudWatch DLQ Alarms ────────────────────────────────────────────────────
+  # Fires when any DLQ has >= DLQAlarmThreshold visible messages.
+  # Alarm state publishes to AlarmNotificationTopic.
+
+  OrderEventsInventoryDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub komodo-${Environment}-order-events-inventory-dlq
+      AlarmDescription: Messages in order→inventory DLQ
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt OrderEventsInventoryDLQ.QueueName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: !Ref DLQAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+  OrderEventsCommunicationsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub komodo-${Environment}-order-events-communications-dlq
+      AlarmDescription: Messages in order→communications DLQ
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt OrderEventsCommunicationsDLQ.QueueName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: !Ref DLQAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+  OrderEventsLoyaltyDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub komodo-${Environment}-order-events-loyalty-dlq
+      AlarmDescription: Messages in order→loyalty DLQ
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt OrderEventsLoyaltyDLQ.QueueName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: !Ref DLQAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+  PaymentEventsOrderDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub komodo-${Environment}-payment-events-order-dlq
+      AlarmDescription: Messages in payment→order DLQ
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PaymentEventsOrderDLQ.QueueName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: !Ref DLQAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+  PaymentEventsCommunicationsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub komodo-${Environment}-payment-events-communications-dlq
+      AlarmDescription: Messages in payment→communications DLQ
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PaymentEventsCommunicationsDLQ.QueueName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: !Ref DLQAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+  UserEventsLoyaltyDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub komodo-${Environment}-user-events-loyalty-dlq
+      AlarmDescription: Messages in user→loyalty DLQ
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt UserEventsLoyaltyDLQ.QueueName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: !Ref DLQAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+  UserEventsCommunicationsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub komodo-${Environment}-user-events-communications-dlq
+      AlarmDescription: Messages in user→communications DLQ
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt UserEventsCommunicationsDLQ.QueueName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: !Ref DLQAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+  # ── CDC Lambda Failure Queue ─────────────────────────────────────────────────
+  # Standard (non-FIFO) SQS queue for Lambda EventSourceMapping OnFailure destination.
+  # This captures stream records that exhausted all Lambda retries — distinct from
+  # the per-subscriber DLQs above, which capture consumer-side failures.
+
+  CDCLambdaFailureQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub komodo-event-bus-cdc-failures-${Environment}
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  CDCLambdaFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub komodo-${Environment}-event-bus-cdc-failures
+      AlarmDescription: CDC Lambda stream processing failures (exhausted retries)
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt CDCLambdaFailureQueue.QueueName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: !Ref DLQAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+
+  # ── IAM Role for CDC Lambda ──────────────────────────────────────────────────
+
+  CDCLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub komodo-event-bus-cdc-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CDCLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # DynamoDB Streams — read stream records
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetRecords
+                  - dynamodb:GetShardIterator
+                  - dynamodb:DescribeStream
+                  - dynamodb:ListStreams
+                Resource:
+                  # TODO: scope to specific stream ARNs once all tables are defined.
+                  # Replace the wildcard with an explicit list:
+                  #   - !Sub arn:aws:dynamodb:${AWSRegion}:${AWSAccountId}:table/komodo-users-${Environment}/stream/*
+                  #   - (add orders, payments, cart, inventory stream ARNs here)
+                  - !Sub arn:aws:dynamodb:${AWSRegion}:${AWSAccountId}:table/*/stream/*
+              # SNS — publish to all domain event topics
+              - Effect: Allow
+                Action: sns:Publish
+                Resource:
+                  - !Ref OrderEventsTopic
+                  - !Ref UserEventsTopic
+                  - !Ref PaymentEventsTopic
+                  - !Ref CartEventsTopic
+                  - !Ref InventoryEventsTopic
+              # SQS — write to CDC failure queue (EventSourceMapping OnFailure)
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt CDCLambdaFailureQueue.Arn
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── CDC Lambda Log Group ─────────────────────────────────────────────────────
+
+  CDCLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/komodo-event-bus-cdc-${Environment}
+      RetentionInDays: 30
+
+  # ── CDC Lambda Function ──────────────────────────────────────────────────────
+  # Container image Lambda — built from apis/komodo-event-bus-api using Dockerfile.cdc
+  # targeting cmd/cdc. The image must be pushed to ECR before this stack deploys.
+  #
+  # TODO: create apis/komodo-event-bus-api/Dockerfile.cdc that builds cmd/cdc
+  # as a provided.al2023 Lambda container image (binary named "bootstrap").
+  # TODO: add a CI pipeline step to build and push the CDC image to ECR.
+
+  CDCLambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: CDCLambdaLogGroup
+    Properties:
+      FunctionName: !Sub komodo-event-bus-cdc-${Environment}
+      PackageType: Image
+      Code:
+        ImageUri: !Sub ${AWSAccountId}.dkr.ecr.${AWSRegion}.amazonaws.com/komodo-event-bus-api-${Environment}:${CDCImageTag}
+      Role: !GetAtt CDCLambdaRole.Arn
+      MemorySize: 128
+      Timeout: 60
+      Environment:
+        Variables:
+          APP_NAME: komodo-event-bus-api
+          ENV: !Ref Environment
+          LOG_LEVEL: info
+          AWS_REGION: !Ref AWSRegion
+          # SNS_TOPIC_ARN_PREFIX is resolved at runtime as:
+          #   arn:aws:sns:<region>:<account>:komodo-
+          # The CDC handler appends <domain>-events-<env>.fifo to form the full ARN.
+          SNS_TOPIC_ARN_PREFIX: !Sub arn:aws:sns:${AWSRegion}:${AWSAccountId}:komodo-
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── EventSourceMappings (DynamoDB Stream → Lambda) ───────────────────────────
+  # BisectBatchOnFunctionError: true — on error, split the batch in half and retry
+  # each half independently. This isolates poison records without blocking the stream.
+  # DestinationConfig.OnFailure routes exhausted records to CDCLambdaFailureQueue.
+
+  UsersStreamMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !ImportValue
+        Fn::Sub: komodo-${Environment}-UsersTableStreamArn
+      FunctionName: !GetAtt CDCLambdaFunction.Arn
+      StartingPosition: LATEST
+      BatchSize: 100
+      BisectBatchOnFunctionError: true
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt CDCLambdaFailureQueue.Arn
+
+  OrdersStreamMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: HasOrdersStream
+    Properties:
+      EventSourceArn: !Ref OrdersTableStreamArn
+      FunctionName: !GetAtt CDCLambdaFunction.Arn
+      StartingPosition: LATEST
+      BatchSize: 100
+      BisectBatchOnFunctionError: true
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt CDCLambdaFailureQueue.Arn
+
+  PaymentsStreamMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: HasPaymentsStream
+    Properties:
+      EventSourceArn: !Ref PaymentsTableStreamArn
+      FunctionName: !GetAtt CDCLambdaFunction.Arn
+      StartingPosition: LATEST
+      BatchSize: 100
+      BisectBatchOnFunctionError: true
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt CDCLambdaFailureQueue.Arn
+
+  CartStreamMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: HasCartStream
+    Properties:
+      EventSourceArn: !Ref CartTableStreamArn
+      FunctionName: !GetAtt CDCLambdaFunction.Arn
+      StartingPosition: LATEST
+      BatchSize: 100
+      BisectBatchOnFunctionError: true
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt CDCLambdaFailureQueue.Arn
+
+  InventoryStreamMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Condition: HasInventoryStream
+    Properties:
+      EventSourceArn: !Ref InventoryTableStreamArn
+      FunctionName: !GetAtt CDCLambdaFunction.Arn
+      StartingPosition: LATEST
+      BatchSize: 100
+      BisectBatchOnFunctionError: true
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt CDCLambdaFailureQueue.Arn
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+
+  OrderEventsTopicArn:
+    Value: !Ref OrderEventsTopic
+    Export:
+      Name: !Sub komodo-${Environment}-OrderEventsTopic
+
+  UserEventsTopicArn:
+    Value: !Ref UserEventsTopic
+    Export:
+      Name: !Sub komodo-${Environment}-UserEventsTopic
+
+  PaymentEventsTopicArn:
+    Value: !Ref PaymentEventsTopic
+    Export:
+      Name: !Sub komodo-${Environment}-PaymentEventsTopic
+
+  CartEventsTopicArn:
+    Value: !Ref CartEventsTopic
+    Export:
+      Name: !Sub komodo-${Environment}-CartEventsTopic
+
+  InventoryEventsTopicArn:
+    Value: !Ref InventoryEventsTopic
+    Export:
+      Name: !Sub komodo-${Environment}-InventoryEventsTopic
+
+  OrderEventsInventoryQueueArn:
+    Value: !GetAtt OrderEventsInventoryQueue.Arn
+    Export:
+      Name: !Sub komodo-${Environment}-OrderEventsInventoryQueue
+
+  OrderEventsCommunicationsQueueArn:
+    Value: !GetAtt OrderEventsCommunicationsQueue.Arn
+    Export:
+      Name: !Sub komodo-${Environment}-OrderEventsCommunicationsQueue
+
+  OrderEventsLoyaltyQueueArn:
+    Value: !GetAtt OrderEventsLoyaltyQueue.Arn
+    Export:
+      Name: !Sub komodo-${Environment}-OrderEventsLoyaltyQueue
+
+  PaymentEventsOrderQueueArn:
+    Value: !GetAtt PaymentEventsOrderQueue.Arn
+    Export:
+      Name: !Sub komodo-${Environment}-PaymentEventsOrderQueue
+
+  PaymentEventsCommunicationsQueueArn:
+    Value: !GetAtt PaymentEventsCommunicationsQueue.Arn
+    Export:
+      Name: !Sub komodo-${Environment}-PaymentEventsCommunicationsQueue
+
+  UserEventsLoyaltyQueueArn:
+    Value: !GetAtt UserEventsLoyaltyQueue.Arn
+    Export:
+      Name: !Sub komodo-${Environment}-UserEventsLoyaltyQueue
+
+  UserEventsCommunicationsQueueArn:
+    Value: !GetAtt UserEventsCommunicationsQueue.Arn
+    Export:
+      Name: !Sub komodo-${Environment}-UserEventsCommunicationsQueue
+
+  CDCLambdaArn:
+    Value: !GetAtt CDCLambdaFunction.Arn
+    Export:
+      Name: !Sub komodo-${Environment}-CDCLambdaArn
+
+  CDCLambdaFailureQueueArn:
+    Value: !GetAtt CDCLambdaFailureQueue.Arn
+    Export:
+      Name: !Sub komodo-${Environment}-CDCLambdaFailureQueue

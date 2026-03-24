@@ -183,10 +183,10 @@ package models
 
 ---
 
-### `pkg/v1/adapter/adapter.go`
+### `pkg/v1/client/client.go`
 
 ```go
-package adapter
+package client
 
 import "net/http"
 
@@ -214,12 +214,12 @@ func NewClient(baseURL string) *Client {
 ```go
 package v1
 
-import "komodo-<name>-api/pkg/v1/adapter"
+import "komodo-<name>-api/pkg/v1/client"
 
-// Adapter is the typed HTTP client for calling komodo-<name>-api.
-type Adapter = adapter.Client
+// Client is the typed HTTP client for calling komodo-<name>-api.
+type Client = client.Client
 
-var NewAdapter = adapter.NewClient
+var NewClient = client.NewClient
 ```
 
 ---

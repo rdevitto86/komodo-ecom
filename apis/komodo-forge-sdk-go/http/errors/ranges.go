@@ -26,7 +26,7 @@ const (
 	RangeShopItem       = 60 // komodo-shop-items-api
 	RangeSearch         = 61 // komodo-search-api
 	RangeCommunications = 70 // komodo-communications-api
-	RangeEvents         = 71 // komodo-events-api
+	RangeEvents         = 71 // komodo-event-bus-api
 	RangeAnalytics      = 80 // reserved — analytics range
 	RangeSupport        = 81 // komodo-support-api
 	RangeLoyalty        = 90 // komodo-loyalty-api

@@ -72,14 +72,18 @@ Individual service composes (`apis/<service>/docker-compose.yaml`) still work st
 2. Pull other `docs/` files only if directly relevant (e.g. `data-model.md` for DynamoDB work, `openapi.yaml` for contract questions).
 3. Do not read sibling service directories unless the task explicitly spans services.
 4. Fall back to this file only for monorepo-wide conventions.
-5. When using forge SDK packages, read the relevant source in `apis/komodo-forge-sdk-go/` — do not guess signatures. Key packages:
+5. Before writing any models, error codes, or adapters, check `apis/<service>/pkg/<version>/` — custom types, error codes (`models/errors.go`), and exported adapters live here. Do not redefine what already exists.
+6. When using forge SDK packages, read the relevant source in `apis/komodo-forge-sdk-go/` — do not guess signatures. Key packages:
    - `http/server` — `server.Run` (Lambda/HTTP universal entrypoint)
    - `http/middleware` — `middleware.Chain`, auth, rate-limiter, request-id, CORS, etc. (see `http/middleware/exports.go`)
-   - `http/errors` — `httpErr.SendError`, error codes (`Global`, `Auth`, `User`, `Payment`, etc.)
+   - `http/errors` — `httpErr.SendError`, error codes (`Global`, `Auth`, `User`, `Payment`, etc.); read `codes.go` for available codes before defining new ones
+   - `http/request` — `request.GetQueryParams`, `GetClientKey`, `GetRequestID`, etc.
+   - `http/response` — `ResponseWriter` wrapper, `IsSuccess`, `IsError`, etc.
    - `aws/secrets-manager` — `secretsmanager.Bootstrap`, `GetSecret`, `GetSecrets`
    - `config` — `config.GetConfigValue`, `SetConfigValue`
-   - `logging/runtime` — `logger.Info`, `logger.Error`, `logger.Warn`
+   - `logging/runtime` — `logger.Info`, `logger.Error`, `logger.Warn`, `logger.Attr`
    - `http/context` — context keys (`USER_ID_KEY`, `SESSION_ID_KEY`, `SCOPES_KEY`, etc.)
+   - `events` — `events.Event`, `EventType`, `Source`, `EntityType` constants, `events.New`
 
 **Working inside the frontend (`ui/`):**
 1. Read `ui/docs/` for architecture and design context.

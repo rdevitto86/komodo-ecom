@@ -71,7 +71,7 @@ cd ui && bun run dev:mock    # mock mode (no backend needed)
 | 7011 | `komodo-auth-api` | `apis/` | Identity & Security | Active |
 | 7021 | `komodo-entitlements-api` | `apis/` | Core Platform | Stub |
 | 7022 | `komodo-features-api` | `apis/` | Core Platform | Stub |
-| 7002 | `komodo-events-api` | `apis/` | Infrastructure | Scaffolded (not deployed) |
+| 7002 | `komodo-event-bus-api` | `apis/` | Infrastructure — internal event relay + CDC Lambda | Scaffolded (not deployed) |
 | 7031 | `komodo-address-api` | `apis/` | Address & Geo | Active |
 | 7041 | `komodo-shop-items-api` | `apis/` | Commerce & Catalog | Active |
 | 7042 | `komodo-search-api` | `apis/` | Commerce & Catalog | Stub |

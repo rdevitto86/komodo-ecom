@@ -13,6 +13,19 @@ bootstrap:
     #!/usr/bin/env bash
     which brew > /dev/null || (echo "Install Homebrew first: https://brew.sh" && exit 1)
     brew bundle
+    just claude-sync
+
+# Sync shared Claude agents/skills from komodo-claude into ~/.claude
+claude-sync:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    KOMODO_CLAUDE="${KOMODO_CLAUDE_DIR:-$HOME/komodo-claude}"
+    if [ ! -d "$KOMODO_CLAUDE" ]; then
+        echo "komodo-claude not found at $KOMODO_CLAUDE"
+        echo "Clone it there or set KOMODO_CLAUDE_DIR to its path, then re-run."
+        exit 1
+    fi
+    bash "$KOMODO_CLAUDE/setup.sh"
 
 # ── Local Dev ──────────────────────────────────────────────────────────────
 #

@@ -280,9 +280,15 @@ Resources:
             ProjectionType: ALL
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
       Tags:
         - Key: Environment
           Value: !Ref Environment
+
+  # TODO: add StreamSpecification: NEW_AND_OLD_IMAGES to the orders, payments,
+  # cart, and inventory tables once those services are defined here. Export each
+  # StreamArn in Outputs so event-pipeline.yaml can import them via Fn::ImportValue.
 
   SessionsTable:
     Type: AWS::DynamoDB::Table
@@ -406,6 +412,16 @@ Resources:
         LifecyclePolicyText: |
           {"rules":[{"rulePriority":1,"description":"Keep last 10 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":10},"action":{"type":"expire"}}]}
 
+  ECREventBusApi:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub komodo-event-bus-api-${Environment}
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"Keep last 10 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":10},"action":{"type":"expire"}}]}
+
   ECRSsrEngine:
     Type: AWS::ECR::Repository
     Properties:
@@ -521,6 +537,11 @@ Outputs:
     Value: !Ref UsersTable
     Export:
       Name: !Sub komodo-${Environment}-UsersTable
+
+  UsersTableStreamArn:
+    Value: !GetAtt UsersTable.StreamArn
+    Export:
+      Name: !Sub komodo-${Environment}-UsersTableStreamArn
 
   ContentBucketName:
     Value: !Ref ContentBucket

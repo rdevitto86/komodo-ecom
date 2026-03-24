@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.41.4
 	github.com/aws/aws-sdk-go-v2/config v1.32.12
 	github.com/aws/aws-sdk-go-v2/service/sns v1.39.14
-	komodo-forge-sdk-go v0.1.0
+	github.com/rdevitto86/komodo-forge-sdk-go v0.1.0
 )
 
 require (
@@ -33,5 +33,3 @@ require (
 	github.com/redis/go-redis/v9 v9.17.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace komodo-forge-sdk-go => ../komodo-forge-sdk-go

@@ -15,7 +15,7 @@
   "dependencies": {
     "@aws-sdk/client-cloudfront": "^3.996.0",
     "@aws-sdk/client-s3": "^3.996.0",
-    "@komodo-forge-sdk/typescript": "link:../komodo-forge-sdk-ts",
+    "@komodo-forge-sdk/typescript": "github:rdevitto86/komodo-forge-sdk-ts",
     "better-sqlite3": "^12.6.2"
   },
   "devDependencies": {

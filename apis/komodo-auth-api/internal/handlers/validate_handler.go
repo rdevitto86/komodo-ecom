@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"komodo-forge-sdk-go/crypto/jwt"
-	logger "komodo-forge-sdk-go/logging/runtime"
+	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
 
 type ValidateRequest struct {

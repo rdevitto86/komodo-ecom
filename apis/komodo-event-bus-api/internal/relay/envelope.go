@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	komodoEvents "komodo-forge-sdk-go/events"
+	komodoEvents "github.com/rdevitto86/komodo-forge-sdk-go/events"
 )
 
 // EventEnvelope is the HTTP request body for POST /events.

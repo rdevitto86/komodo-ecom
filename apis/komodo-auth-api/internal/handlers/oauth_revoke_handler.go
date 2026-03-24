@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"komodo-forge-sdk-go/crypto/jwt"
-	httpErr "komodo-forge-sdk-go/http/errors"
-	logger "komodo-forge-sdk-go/logging/runtime"
+	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
+	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
 
 type RevokeRequest struct {

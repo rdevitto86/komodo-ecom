@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"komodo-forge-sdk-go/config"
-	komodoEvents "komodo-forge-sdk-go/events"
-	logger "komodo-forge-sdk-go/logging/runtime"
+	"github.com/rdevitto86/komodo-forge-sdk-go/config"
+	komodoEvents "github.com/rdevitto86/komodo-forge-sdk-go/events"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws"

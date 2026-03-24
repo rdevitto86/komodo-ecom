@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"komodo-auth-api/internal/registry"
-	"komodo-forge-sdk-go/crypto/jwt"
-	"komodo-forge-sdk-go/crypto/oauth"
-	httpErr "komodo-forge-sdk-go/http/errors"
-	logger "komodo-forge-sdk-go/logging/runtime"
+	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
+	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/oauth"
+	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
 
 type TokenRequest struct {

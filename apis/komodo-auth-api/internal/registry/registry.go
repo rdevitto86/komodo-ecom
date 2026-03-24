@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"komodo-forge-sdk-go/config"
+	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 )
 
 // ClientRecord is the stored representation of a registered OAuth client.

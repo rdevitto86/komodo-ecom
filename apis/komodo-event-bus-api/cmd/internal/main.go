@@ -6,12 +6,12 @@ import (
 	"os"
 	"time"
 
-	awsSM "komodo-forge-sdk-go/aws/secrets-manager"
-	"komodo-forge-sdk-go/config"
-	cryptoJWT "komodo-forge-sdk-go/crypto/jwt"
-	mw "komodo-forge-sdk-go/http/middleware"
-	"komodo-forge-sdk-go/http/server"
-	logger "komodo-forge-sdk-go/logging/runtime"
+	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
+	"github.com/rdevitto86/komodo-forge-sdk-go/config"
+	cryptoJWT "github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
+	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
+	"github.com/rdevitto86/komodo-forge-sdk-go/http/server"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"komodo-event-bus-api/internal/relay"
 

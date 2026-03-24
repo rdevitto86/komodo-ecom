@@ -2,7 +2,7 @@ package domains
 
 import (
 	"komodo-event-bus-api/internal/cdc"
-	komodoEvents "komodo-forge-sdk-go/events"
+	komodoEvents "github.com/rdevitto86/komodo-forge-sdk-go/events"
 
 	"github.com/aws/aws-lambda-go/events"
 )

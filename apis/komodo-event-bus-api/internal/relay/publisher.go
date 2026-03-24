@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"komodo-forge-sdk-go/config"
+	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sns"

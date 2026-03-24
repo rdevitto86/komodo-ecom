@@ -2,12 +2,10 @@ module komodo-support-api
 
 go 1.26
 
-replace komodo-forge-sdk-go => ../komodo-forge-sdk-go
-
 require (
 	github.com/anthropics/anthropic-sdk-go v1.26.0
 	github.com/google/uuid v1.6.0
-	komodo-forge-sdk-go v0.0.0-00010101000000-000000000000
+	github.com/rdevitto86/komodo-forge-sdk-go v0.1.0
 )
 
 require (
@@ -32,7 +30,6 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/lmittmann/tint v1.1.2 // indirect
 	github.com/redis/go-redis/v9 v9.17.0 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect

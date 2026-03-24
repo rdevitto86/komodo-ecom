@@ -3,7 +3,7 @@ package models
 import (
 	"net/http"
 
-	httpErr "komodo-forge-sdk-go/http/errors"
+	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 )
 
 // 61xxx — komodo-search-api (see forge-sdk ranges.go)

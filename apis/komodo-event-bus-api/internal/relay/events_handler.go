@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	httpErr "komodo-forge-sdk-go/http/errors"
-	logger "komodo-forge-sdk-go/logging/runtime"
+	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"komodo-event-bus-api/pkg/v1/models"
 )

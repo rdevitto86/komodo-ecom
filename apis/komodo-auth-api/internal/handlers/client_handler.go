@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"komodo-auth-api/internal/registry"
-	httpErr "komodo-forge-sdk-go/http/errors"
-	logger "komodo-forge-sdk-go/logging/runtime"
+	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
 
 // GetClientHandler returns metadata for a registered OAuth client by ID.

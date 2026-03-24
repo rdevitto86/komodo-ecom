@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	ctxKeys "komodo-forge-sdk-go/http/context"
-	httpErr "komodo-forge-sdk-go/http/errors"
-	logger "komodo-forge-sdk-go/logging/runtime"
+	ctxKeys "github.com/rdevitto86/komodo-forge-sdk-go/http/context"
+	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"komodo-support-api/internal/repository"
 	"komodo-support-api/internal/service"

@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	httpErr "komodo-forge-sdk-go/http/errors"
+	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	"net/http"
 )
 

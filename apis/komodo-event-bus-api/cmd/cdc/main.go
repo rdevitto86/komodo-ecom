@@ -6,8 +6,8 @@ import (
 
 	"komodo-event-bus-api/internal/cdc"
 	_ "komodo-event-bus-api/internal/cdc/domains" // register domain classifiers via init()
-	"komodo-forge-sdk-go/config"
-	logger "komodo-forge-sdk-go/logging/runtime"
+	"github.com/rdevitto86/komodo-forge-sdk-go/config"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"

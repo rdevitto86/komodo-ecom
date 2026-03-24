@@ -7,12 +7,12 @@ import (
 
 	"komodo-address-api/internal/handlers"
 
-	awsSM "komodo-forge-sdk-go/aws/secrets-manager"
-	"komodo-forge-sdk-go/config"
-	"komodo-forge-sdk-go/crypto/jwt"
-	mw "komodo-forge-sdk-go/http/middleware"
-	srv "komodo-forge-sdk-go/http/server"
-	logger "komodo-forge-sdk-go/logging/runtime"
+	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
+	"github.com/rdevitto86/komodo-forge-sdk-go/config"
+	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
+	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
+	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
 
 // init runs once per execution environment (cold start on Lambda, once on Fargate/local).

@@ -7,7 +7,7 @@
       "dependencies": {
         "@aws-sdk/client-cloudfront": "^3.996.0",
         "@aws-sdk/client-s3": "^3.996.0",
-        "@komodo-forge-sdk/typescript": "link:../komodo-forge-sdk-ts",
+        "@komodo-forge-sdk/typescript": "github:rdevitto86/komodo-forge-sdk-ts",
         "better-sqlite3": "^12.6.2",
       },
       "devDependencies": {
@@ -169,7 +169,7 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@komodo-forge-sdk/typescript": ["@komodo-forge-sdk/typescript@link:../komodo-forge-sdk-ts", {}],
+    "@komodo-forge-sdk/typescript": ["@komodo-forge-sdk/typescript@github:rdevitto86/komodo-forge-sdk-ts#ae2009e", {}, "rdevitto86-komodo-forge-sdk-ts-ae2009e"],
 
     "@polka/url": ["@polka/url@1.0.0-next.29", "", {}, "sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww=="],
 

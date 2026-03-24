@@ -1,11 +1,11 @@
 package main
 
 import (
-	awsS3 "komodo-forge-sdk-go/aws/s3"
-	awsSM "komodo-forge-sdk-go/aws/secrets-manager"
-	"komodo-forge-sdk-go/config"
-	mw "komodo-forge-sdk-go/http/middleware"
-	logger "komodo-forge-sdk-go/logging/runtime"
+	awsS3 "github.com/rdevitto86/komodo-forge-sdk-go/aws/s3"
+	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
+	"github.com/rdevitto86/komodo-forge-sdk-go/config"
+	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 	"komodo-shop-items-api/internal/handlers"
 	"net/http"
 	"os"

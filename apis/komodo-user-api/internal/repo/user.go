@@ -6,8 +6,8 @@ import (
 
 	ddbTypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
-	"komodo-forge-sdk-go/aws/dynamodb"
-	"komodo-forge-sdk-go/config"
+	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamodb"
+	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	"komodo-user-api/pkg/v1/models"
 )
 

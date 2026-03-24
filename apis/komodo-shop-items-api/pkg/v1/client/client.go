@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	awsS3 "komodo-forge-sdk-go/aws/s3"
-	logger "komodo-forge-sdk-go/logging/runtime"
+	awsS3 "github.com/rdevitto86/komodo-forge-sdk-go/aws/s3"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"komodo-shop-items-api/pkg/v1/models"
 )

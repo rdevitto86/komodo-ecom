@@ -2,7 +2,7 @@ name: komodo-shop-items-api
 
 services:
   shop-items-api:
-    image: ${APP_NAME}:${VERSION:-latest}
+    image: komodo-shop-items-api:${VERSION:-dev}
     build:
       context: ..
       dockerfile: komodo-shop-items-api/Dockerfile
@@ -13,15 +13,12 @@ services:
       resources:
         limits:
           memory: ${MEM_LIMIT:-512M}
+    env_file:
+      - ../../infra/local/env.shared
     environment:
-      APP_NAME: ${APP_NAME}
-      ENV: ${ENV}
+      APP_NAME: komodo-shop-items-api
       PORT: 7041
-      VERSION: ${VERSION}
-      AWS_REGION: ${AWS_REGION}
-      AWS_ENDPOINT: ${AWS_ENDPOINT}
-      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
-      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH}
+      VERSION: ${VERSION:-dev}
       EVAL_RULES_PATH: /app/config/validation_rules.yml
     ports:
       - "7041:7041"

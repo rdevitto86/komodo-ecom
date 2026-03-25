@@ -2,7 +2,7 @@ name: komodo-ssr-engine-svelte
 
 services:
   ssr-api:
-    image: ${APP_NAME}:${VERSION:-latest}
+    image: komodo-ssr-engine-svelte:${VERSION:-dev}
     build:
       context: ..
       dockerfile: komodo-ssr-engine-svelte/Dockerfile
@@ -11,11 +11,11 @@ services:
       resources:
         limits:
           memory: ${MEM_LIMIT:-512M}
+    env_file:
+      - ../../infra/local/env.shared
     environment:
       PORT: 7003
       NODE_ENV: ${NODE_ENV:-development}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
-      AWS_ENDPOINT: ${AWS_ENDPOINT}
       S3_CONTENT_BUCKET: ${S3_CONTENT_BUCKET}
       CLOUDFRONT_DISTRIBUTION_ID: ${CLOUDFRONT_DISTRIBUTION_ID}
     ports:

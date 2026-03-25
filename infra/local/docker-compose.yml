@@ -49,7 +49,7 @@ services:
     environment:
       DEBUG: "0"
       ENV: local
-      SERVICES: secretsmanager,s3,dynamodb,rds
+      SERVICES: secretsmanager,s3,dynamodb
     env_file:
       - localstack/.env
     volumes:

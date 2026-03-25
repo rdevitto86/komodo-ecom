@@ -4,8 +4,9 @@ Description: >
   Creates VPC networking, DynamoDB tables, ElastiCache (Redis), ECR repositories,
   and Secrets Manager placeholder secrets.
 
-  DynamoDB table definitions mirror apis/localstack/init/03-init-dynamodb.sh.
-  Keep both in sync when adding tables or modifying key schemas.
+  This template is the source of truth for shared/platform DynamoDB tables (auth, user).
+  Per-service tables (orders, cart, payments, etc.) are added here as each service's
+  data model is finalised — see apis/<service>/docs/data-model.md for design docs.
 
 # ---------------------------------------------------------------------------
 # Parameters
@@ -250,7 +251,8 @@ Resources:
           Value: !Sub komodo-redis-sg-${Environment}
 
   # ── DynamoDB Tables ───────────────────────────────────────────────────────
-  # Mirrors apis/localstack/init/03-init-dynamodb.sh
+  # Shared/platform tables only. Each service owns its own table — add here as
+  # data models are finalised (see apis/<service>/docs/data-model.md).
   # All tables use PAY_PER_REQUEST billing (no capacity planning needed at this scale).
 
   UsersTable:

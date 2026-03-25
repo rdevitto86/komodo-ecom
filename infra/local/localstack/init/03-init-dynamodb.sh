@@ -1,83 +1,90 @@
 #!/bin/bash
 
-# LocalStack initialization script for DynamoDB
-# Creates DynamoDB tables for user and auth data
+# DynamoDB initialization for LocalStack.
+#
+# Source of truth for table design (keys, GSIs, billing, streams):
+#   infra/deploy/cfn/infra.yaml          — shared/platform tables (auth, user)
+#   apis/<service>/docs/data-model.md    — per-service tables
+#
+# Table ownership — one service, one table:
+#   komodo-auth-api       → komodo-sessions, komodo-oauth-tokens
+#   komodo-user-api       → komodo-users  (single-table: profiles, addresses, preferences)
+#   komodo-shop-items-api → komodo-shop-items    [TODO: add when data model is finalised]
+#   komodo-cart-api       → komodo-cart          [TODO]
+#   komodo-order-api      → komodo-orders        [TODO]
+#   komodo-inventory-api  → komodo-inventory     [TODO]
+#   komodo-payments-api   → komodo-payments      [TODO]
+#   komodo-returns-api    → komodo-returns       [TODO]
+#   komodo-address-api    → komodo-addresses     [TODO]
+#   komodo-loyalty-api    → komodo-loyalty       [TODO]
+#   komodo-reviews-api    → komodo-reviews       [TODO]
+#
+# Naming: local tables have no environment suffix (komodo-users, not komodo-users-local).
+# CFn appends -${Environment} for dev/stg/prod.
 
 echo "Initializing DynamoDB in LocalStack..."
 
 sleep 1
 
-# Users table
-echo "Creating Users table..."
-awslocal dynamodb create-table \
-  --table-name komodo-users-dev \
-  --attribute-definitions \
-    AttributeName=user_id,AttributeType=S \
-    AttributeName=email,AttributeType=S \
-  --key-schema \
-    AttributeName=user_id,KeyType=HASH \
-  --global-secondary-indexes \
-    "IndexName=email-index,KeySchema=[{AttributeName=email,KeyType=HASH}],Projection={ProjectionType=ALL},ProvisionedThroughput={ReadCapacityUnits=5,WriteCapacityUnits=5}" \
-  --provisioned-throughput \
-    ReadCapacityUnits=5,WriteCapacityUnits=5 \
-  2>/dev/null || echo "Users table already exists"
+# ── komodo-auth-api ───────────────────────────────────────────────────────
 
-# User profiles table
-echo "Creating UserProfiles table..."
+echo "Creating Sessions table (komodo-auth-api)..."
 awslocal dynamodb create-table \
-  --table-name komodo-user-profiles-dev \
-  --attribute-definitions \
-    AttributeName=user_id,AttributeType=S \
-  --key-schema \
-    AttributeName=user_id,KeyType=HASH \
-  --provisioned-throughput \
-    ReadCapacityUnits=5,WriteCapacityUnits=5 \
-  2>/dev/null || echo "UserProfiles table already exists"
-
-# Sessions table
-echo "Creating Sessions table..."
-awslocal dynamodb create-table \
-  --table-name komodo-sessions-dev \
+  --table-name komodo-sessions \
   --attribute-definitions \
     AttributeName=session_id,AttributeType=S \
     AttributeName=user_id,AttributeType=S \
   --key-schema \
     AttributeName=session_id,KeyType=HASH \
   --global-secondary-indexes \
-    "IndexName=user-id-index,KeySchema=[{AttributeName=user_id,KeyType=HASH}],Projection={ProjectionType=ALL},ProvisionedThroughput={ReadCapacityUnits=5,WriteCapacityUnits=5}" \
-  --provisioned-throughput \
-    ReadCapacityUnits=5,WriteCapacityUnits=5 \
-  --stream-specification \
-    StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES \
+    "IndexName=user-id-index,KeySchema=[{AttributeName=user_id,KeyType=HASH}],Projection={ProjectionType=ALL}" \
+  --billing-mode PAY_PER_REQUEST \
+  --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES \
   2>/dev/null || echo "Sessions table already exists"
 
-# OAuth tokens table
-echo "Creating OAuthTokens table..."
+echo "Creating OAuthTokens table (komodo-auth-api)..."
 awslocal dynamodb create-table \
-  --table-name komodo-oauth-tokens-dev \
+  --table-name komodo-oauth-tokens \
   --attribute-definitions \
     AttributeName=token_id,AttributeType=S \
     AttributeName=user_id,AttributeType=S \
   --key-schema \
     AttributeName=token_id,KeyType=HASH \
   --global-secondary-indexes \
-    "IndexName=user-id-index,KeySchema=[{AttributeName=user_id,KeyType=HASH}],Projection={ProjectionType=ALL},ProvisionedThroughput={ReadCapacityUnits=5,WriteCapacityUnits=5}" \
-  --provisioned-throughput \
-    ReadCapacityUnits=5,WriteCapacityUnits=5 \
+    "IndexName=user-id-index,KeySchema=[{AttributeName=user_id,KeyType=HASH}],Projection={ProjectionType=ALL}" \
+  --billing-mode PAY_PER_REQUEST \
   2>/dev/null || echo "OAuthTokens table already exists"
 
-# Single-table design for user-api (PK=USER#<id>, SK=PROFILE|ADDR#<id>|PMT#<id>|PREFS).
-# This is what DYNAMODB_TABLE=komodo-users points at in all environments.
-echo "Creating komodo-users single table..."
+# ── komodo-user-api ───────────────────────────────────────────────────────
+# Single-table design. PK=USER#<id>, SK=PROFILE | ADDR#<id> | PREFS
+# GSI on email supports login lookups. Stream feeds event-bus CDC Lambda.
+
+echo "Creating Users table (komodo-user-api)..."
 awslocal dynamodb create-table \
   --table-name komodo-users \
   --attribute-definitions \
     AttributeName=PK,AttributeType=S \
     AttributeName=SK,AttributeType=S \
+    AttributeName=email,AttributeType=S \
   --key-schema \
     AttributeName=PK,KeyType=HASH \
     AttributeName=SK,KeyType=RANGE \
+  --global-secondary-indexes \
+    "IndexName=email-index,KeySchema=[{AttributeName=email,KeyType=HASH}],Projection={ProjectionType=ALL}" \
   --billing-mode PAY_PER_REQUEST \
-  2>/dev/null || echo "komodo-users table already exists"
+  --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES \
+  2>/dev/null || echo "Users table already exists"
+
+# ── Per-service tables ────────────────────────────────────────────────────
+# Add each table here as the service's data model is finalised.
+# Template:
+#
+#   awslocal dynamodb create-table \
+#     --table-name komodo-<service> \
+#     --attribute-definitions ... \
+#     --key-schema ... \
+#     --billing-mode PAY_PER_REQUEST \
+#     --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES \
+#     2>/dev/null || echo "<Service> table already exists"
 
 echo "DynamoDB initialized successfully"

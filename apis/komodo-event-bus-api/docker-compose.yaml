@@ -2,7 +2,7 @@ name: komodo-event-bus-api
 
 services:
   event-bus-api:
-    image: ${APP_NAME}:${VERSION:-latest}
+    image: komodo-event-bus-api:${VERSION:-dev}
     build:
       context: ..
       dockerfile: komodo-event-bus-api/Dockerfile
@@ -13,15 +13,12 @@ services:
       resources:
         limits:
           memory: ${MEM_LIMIT:-256M}
+    env_file:
+      - ../../infra/local/env.shared
     environment:
-      APP_NAME: ${APP_NAME}
-      ENV: ${ENV}
+      APP_NAME: komodo-event-bus-api
       PORT: :7002
-      VERSION: ${VERSION}
-      AWS_REGION: ${AWS_REGION}
-      AWS_ENDPOINT: ${AWS_ENDPOINT}
-      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
-      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH}
+      VERSION: ${VERSION:-dev}
     ports:
       - "7002:7002"
     extra_hosts:

@@ -2,7 +2,7 @@ name: komodo-user-api
 
 services:
   user-api-public:
-    image: ${APP_NAME}-public:${VERSION:-latest}
+    image: komodo-user-api-public:${VERSION:-dev}
     build:
       context: ..
       dockerfile: komodo-user-api/Dockerfile
@@ -14,16 +14,12 @@ services:
       resources:
         limits:
           memory: ${MEM_LIMIT:-512M}
+    env_file:
+      - ../../infra/local/env.shared
     environment:
-      APP_NAME: ${APP_NAME}
-      ENV: ${ENV}
+      APP_NAME: komodo-user-api
       PORT: 7051
-      VERSION: ${VERSION}
-      LOG_LEVEL: ${LOG_LEVEL}
-      AWS_REGION: ${AWS_REGION}
-      AWS_ENDPOINT: ${AWS_ENDPOINT}
-      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
-      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH}
+      VERSION: ${VERSION:-dev}
       EVAL_RULES_PATH: /app/config/validation_rules.yaml
     ports:
       - "7051:7051"
@@ -43,7 +39,7 @@ services:
   # Accessible to other services on komodo-network as user-api-public:7052.
   # On Fargate, both containers run in the same task and share the task network interface.
   user-api-internal:
-    image: ${APP_NAME}-internal:${VERSION:-latest}
+    image: komodo-user-api-internal:${VERSION:-dev}
     build:
       context: ..
       dockerfile: komodo-user-api/Dockerfile
@@ -59,16 +55,12 @@ services:
       resources:
         limits:
           memory: ${MEM_LIMIT:-256M}
+    env_file:
+      - ../../infra/local/env.shared
     environment:
-      APP_NAME: ${APP_NAME}
-      ENV: ${ENV}
+      APP_NAME: komodo-user-api
       INTERNAL_PORT: 7052
-      VERSION: ${VERSION}
-      LOG_LEVEL: ${LOG_LEVEL}
-      AWS_REGION: ${AWS_REGION}
-      AWS_ENDPOINT: ${AWS_ENDPOINT}
-      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
-      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH}
+      VERSION: ${VERSION:-dev}
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7052/health"]
       interval: 30s

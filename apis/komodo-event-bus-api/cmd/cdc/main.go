@@ -6,6 +6,8 @@ import (
 
 	"komodo-event-bus-api/internal/cdc"
 	_ "komodo-event-bus-api/internal/cdc/domains" // register domain classifiers via init()
+
+	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
 	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
@@ -23,13 +25,22 @@ func init() {
 }
 
 func main() {
-	// TODO: bootstrap awsSM.Bootstrap here to load SNS_TOPIC_ARN_PREFIX and
-	// other secrets from Secrets Manager rather than plain env vars.
-	// Follow the pattern in apis/komodo-shop-items-api/main.go.
-	topicARNPrefix := mustEnv("SNS_TOPIC_ARN_PREFIX")
+	smCfg := awsSM.Config{
+		Region:   config.GetConfigValue("AWS_REGION"),
+		Endpoint: config.GetConfigValue("AWS_ENDPOINT"),
+		Prefix:   config.GetConfigValue("AWS_SECRET_PREFIX"),
+		Batch:    config.GetConfigValue("AWS_SECRET_BATCH"),
+		Keys: []string{
+			"SNS_TOPIC_ARN_PREFIX",
+		},
+	}
+	if err := awsSM.Bootstrap(smCfg); err != nil {
+		logger.Fatal("failed to initialize secrets manager", err)
+		os.Exit(1)
+	}
 
 	cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
-		awsconfig.WithRegion(mustEnv("AWS_REGION")),
+		awsconfig.WithRegion(config.GetConfigValue("AWS_REGION")),
 	)
 	if err != nil {
 		logger.Fatal("failed to load AWS config", err)
@@ -38,7 +49,6 @@ func main() {
 
 	var snsClient *sns.Client
 	if endpoint := config.GetConfigValue("AWS_ENDPOINT"); endpoint != "" {
-		// LocalStack or dev endpoint override
 		snsClient = sns.NewFromConfig(cfg, func(o *sns.Options) {
 			o.BaseEndpoint = &endpoint
 		})
@@ -46,15 +56,13 @@ func main() {
 		snsClient = sns.NewFromConfig(cfg)
 	}
 
-	h := cdc.NewHandler(snsClient, topicARNPrefix)
+	h := cdc.NewHandler(snsClient, mustConfig("SNS_TOPIC_ARN_PREFIX"))
 	lambda.Start(h.Handle)
 }
 
-func mustEnv(key string) string {
-	v := config.GetConfigValue(key)
-	if v == "" {
-		logger.Fatal("missing required env var: "+key, nil)
-		os.Exit(1)
-	}
-	return v
+func mustConfig(key string) string {
+	if v := config.GetConfigValue(key); v != "" { return v }
+	logger.Fatal("missing required config: "+key, nil)
+	os.Exit(1)
+	return ""
 }

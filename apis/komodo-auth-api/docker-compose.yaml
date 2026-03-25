@@ -2,7 +2,7 @@ name: komodo-auth-api
 
 services:
   auth-api-public:
-    image: ${APP_NAME}-public:${VERSION:-latest}
+    image: komodo-auth-api-public:${VERSION:-dev}
     build:
       context: ..
       dockerfile: komodo-auth-api/Dockerfile
@@ -14,16 +14,13 @@ services:
       resources:
         limits:
           memory: ${MEM_LIMIT:-512M}
+    env_file:
+      - ../../infra/local/env.shared
     environment:
-      APP_NAME: ${APP_NAME}
-      ENV: ${ENV}
+      APP_NAME: komodo-auth-api
       PORT: :7011
       INTERNAL_PORT: :7012
-      VERSION: ${VERSION}
-      AWS_REGION: ${AWS_REGION}
-      AWS_ENDPOINT: ${AWS_ENDPOINT}
-      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
-      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH}
+      VERSION: ${VERSION:-dev}
       EVAL_RULES_PATH: /app/config/validation_rules.yml
     ports:
       - "7011:7011"
@@ -40,7 +37,7 @@ services:
       - komodo-network
 
   auth-api-internal:
-    image: ${APP_NAME}-internal:${VERSION:-latest}
+    image: komodo-auth-api-internal:${VERSION:-dev}
     build:
       context: ..
       dockerfile: komodo-auth-api/Dockerfile
@@ -52,15 +49,12 @@ services:
       resources:
         limits:
           memory: ${MEM_LIMIT:-512M}
+    env_file:
+      - ../../infra/local/env.shared
     environment:
-      APP_NAME: ${APP_NAME}
-      ENV: ${ENV}
+      APP_NAME: komodo-auth-api
       INTERNAL_PORT: :7012
-      VERSION: ${VERSION}
-      AWS_REGION: ${AWS_REGION}
-      AWS_ENDPOINT: ${AWS_ENDPOINT}
-      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
-      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH}
+      VERSION: ${VERSION:-dev}
     depends_on:
       auth-api-public:
         condition: service_healthy

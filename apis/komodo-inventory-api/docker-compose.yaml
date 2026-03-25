@@ -2,7 +2,7 @@ name: komodo-inventory-api
 
 services:
   inventory-api:
-    image: ${APP_NAME}:${VERSION:-latest}
+    image: komodo-inventory-api:${VERSION:-dev}
     build:
       context: ..
       dockerfile: komodo-inventory-api/Dockerfile
@@ -13,15 +13,12 @@ services:
       resources:
         limits:
           memory: ${MEM_LIMIT:-256M}
+    env_file:
+      - ../../infra/local/env.shared
     environment:
-      APP_NAME: ${APP_NAME}
-      ENV: ${ENV}
+      APP_NAME: komodo-inventory-api
       PORT: :7044
-      VERSION: ${VERSION}
-      AWS_REGION: ${AWS_REGION}
-      AWS_ENDPOINT: ${AWS_ENDPOINT}
-      AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
-      AWS_SECRET_BATCH: ${AWS_SECRET_BATCH}
+      VERSION: ${VERSION:-dev}
     ports:
       - "7044:7044"
     extra_hosts:

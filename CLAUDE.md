@@ -5,26 +5,35 @@ E-commerce platform for a real business. Architecture decisions prioritize corre
 
 ---
 
-## 🚦 Active Mode
+## Agent Model
 
-| Mode | Trigger | Role | Full Rules |
-|------|---------|------|------------|
-| **ADVISOR** (default) | No prefix | Senior backend peer — challenge, guide, never implement | `.claude/agents/advisor.md` |
-| **SENIOR** | `[SWE]` | Implements with judgment — brief flags, then executes | `.claude/agents/swe.md` (backend + frontend) |
+The main chat session is the **orchestrator** (architect role by default). Specialized work is delegated to named agent sessions — either spawned inline by the orchestrator or run manually in dedicated terminal windows.
 
----
+**Three layers:**
 
-## ADVISOR Protocol
-See `.claude/agents/advisor.md` for the full role definition. Summary:
+| Layer | How | Role |
+|-------|-----|------|
+| Orchestrator | Main chat | Plans, coordinates, delegates — does not implement |
+| Inline agents | `Agent` tool | Short-lived subagents for contained tasks within the same session |
+| Terminal agents | Dedicated `claude` session per agent type | Long-running or parallel work with focused context |
 
-| Protocol | Behavior |
-|----------|----------|
-| Trade-offs First | Lead with non-obvious implications — partition costs, race conditions, scaling ceilings |
-| Challenge | Ask "have you considered X?" before approving any design |
-| Ask Before Showing | Request an attempt first. If stuck: *"Hint or answer?"* |
-| Snippet-Only | No full-file rewrites. Targeted snippets with exact placement |
-| Flag, Don't Fix | Surface mistakes; let the developer reason through the fix |
-| `[Q]` | Direct answer, no mentorship overhead |
+**Terminal agent sessions** are per-role, not per-service. A single SWE session handles all Go work; a single DevOps session handles all infra. Each session loads only the context relevant to its current task.
+
+```
+Main chat (orchestrator)
+  ├── Agent tool → inline subagent (fast, same context window)
+  ├── RemoteTrigger → named terminal session (background, parallel)
+  └── OpenClaw MCP → background tasks, cron, cross-session memory
+                      (TODO: configure in .claude/settings.json)
+
+Terminal sessions (spin up manually or via orchestrator):
+  claude --agent swe          # all implementation work
+  claude --agent devops       # all infra / deploy work
+  claude --agent qa           # all testing / review work
+  claude --agent architect    # deep design sessions
+```
+
+Agent definitions live in `.claude/agents/`. The orchestrator routes to them by name.
 
 ---
 
@@ -129,14 +138,21 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 | `auth-api` | EC2 docker-compose | Ready — `deploy/ec2/` |
 | `user-api` | EC2 docker-compose | Ready — `deploy/ec2/` |
 | `shop-items-api` | EC2 docker-compose | Ready — `deploy/ec2/` |
-| `cart-api` | EC2 docker-compose | Scaffolded — docs complete |
-| `inventory-api` | Lambda | Scaffolded — TODO: implement |
-| `address-api` | Lambda | TODO: add Lambda handler |
-| `order-api` | Lambda | TODO: add Lambda handler |
+| `cart-api` | EC2 docker-compose | Scaffolded |
+| `shop-inventory-api` | EC2 docker-compose | Scaffolded |
+| `event-bus-api` | EC2 docker-compose | Built, not deployed |
+| `order-api` | EC2 docker-compose | Scaffolded |
+| `order-returns-api` | Lambda | Scaffolded |
+| `order-reservations-api` | EC2 docker-compose | Foundation built — TODO: DynamoDB + checkout flow |
+| `search-api` | EC2 docker-compose | Foundation built — TODO: Typesense integration |
+| `loyalty-api` | EC2 docker-compose | Scaffolded |
+| `reviews-api` | EC2 docker-compose | Scaffolded |
+| `support-api` | EC2 docker-compose | Implemented (in-memory — wire DynamoDB before prod) |
+| `address-api` | Lambda | TODO: add Dockerfile + Lambda handler |
 | `payments-api` | Lambda | TODO: add Lambda handler |
 | `communications-api` | Lambda | TODO: add Lambda handler |
-| `features-api` | Lambda | TODO: add Lambda handler |
-| `entitlements-api` | Lambda | TODO: add Lambda handler |
+| `features-api` | Lambda | TODO: add Dockerfile + Lambda handler |
+| `entitlements-api` | Lambda | TODO: add Dockerfile + Lambda handler |
 
 **Scale-up path:** `infra/deploy/cfn/` templates are ready. When EC2 hits its ceiling, run `deploy-infra.sh` + `deploy-services.sh` to migrate to ECS Fargate. No code changes required.
 
@@ -162,15 +178,17 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 
 | Range | Domain | Assigned | Reserved |
 |-------|--------|----------|---------|
-| 7001–7010 | Frontend & Infrastructure | 7001 `ui`, 7002 `events-api`, 7003 `ssr-engine-svelte` | 7004–7010 |
+| 7001–7010 | Frontend & Infrastructure | 7001 `ui`, 7002 `event-bus-api`, 7003 `ssr-engine-svelte` | 7004–7010 |
 | 7011–7020 | Identity & Security | 7011 `auth-api` pub, 7012 `auth-api` int | 7013–7020 |
 | 7021–7030 | Core Platform | 7021 `entitlements-api`, 7022 `features-api` | 7023–7030 |
 | 7031–7040 | Address & Geo | 7031 `address-api` | 7032–7040 |
-| 7041–7050 | Commerce & Catalog | 7041 `shop-items-api`, 7042 `search-api`, 7043 `cart-api`, 7044 `inventory-api` | 7045–7050 |
+| 7041–7050 | Commerce & Catalog | 7041 `shop-items-api`, 7042 `search-api`, 7043 `cart-api`, 7044 `shop-inventory-api` | 7045–7050 |
 | 7051–7060 | User & Profile | 7051 `user-api` pub, 7052 `user-api` int | 7053–7060 |
-| 7061–7070 | Orders | 7061 `order-api`, 7062 `returns-api` | 7063–7070 |
+| 7061–7070 | Orders | 7061 `order-api`, 7062 `order-returns-api`, 7063 `order-reservations-api` | 7064–7070 |
 | 7071–7080 | Payments | 7071 `payments-api` | 7072–7080 |
 | 7081–7090 | Communications | 7081 `communications-api` | 7082–7090 |
 | 7091–7100 | Loyalty & Social | 7091 `loyalty-api`, 7092 `reviews-api` | 7093–7100 |
 | 7101–7110 | Support & CX | 7101 `support-api` | 7102–7110 |
 | 7111–7120 | Analytics & Discovery | — | 7111–7120 |
+
+> **Rust variants:** `komodo-payments-api-rust` and `komodo-shop-inventory-api-rust` are V2 experiments — no ports assigned until A/B migration begins.

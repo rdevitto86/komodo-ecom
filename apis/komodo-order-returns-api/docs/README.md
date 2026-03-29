@@ -1,4 +1,4 @@
-# komodo-returns-api
+# komodo-order-returns-api
 
 Returns and RMA (Return Merchandise Authorization) service. Manages the full return lifecycle from customer request through refund and restock.
 

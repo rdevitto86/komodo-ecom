@@ -10,7 +10,7 @@ import (
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
-	"komodo-search-api/internal/handlers"
+	"komodo-order-reservations-api/internal/handlers"
 )
 
 func init() {
@@ -35,16 +35,15 @@ func main() {
 		Prefix:   config.GetConfigValue("AWS_SECRET_PREFIX"),
 		Batch:    config.GetConfigValue("AWS_SECRET_BATCH"),
 		Keys: []string{
-			"SEARCH_API_CLIENT_ID",
-			"SEARCH_API_CLIENT_SECRET",
-			"TYPESENSE_HOST",
-			"TYPESENSE_PORT",
-			"TYPESENSE_API_KEY",
-			"TYPESENSE_COLLECTION",
+			"RESERVATIONS_API_CLIENT_ID",
+			"RESERVATIONS_API_CLIENT_SECRET",
+			"DYNAMODB_SLOTS_TABLE",
+			"DYNAMODB_BOOKINGS_TABLE",
 			"IP_WHITELIST",
 			"IP_BLACKLIST",
 			"RATE_LIMIT_RPS",
 			"RATE_LIMIT_BURST",
+			// TODO: add BOOKING_HOLD_TTL_SECONDS when checkout flow (Option A) is implemented
 		},
 	}
 	if err := awsSM.Bootstrap(smCfg); err != nil {
@@ -53,19 +52,11 @@ func main() {
 	}
 	logger.Info("aws secrets manager initialized successfully")
 
-	// TODO(typesense): initialize Typesense client after secrets are loaded.
-	// Add dependency: github.com/typesense/typesense-go
-	// Client config: host, port, api_key from secrets above.
-	// Call repository.InitTypesense(host, port, apiKey, collection) here.
-	// Verify collection exists on startup — log warning if not, don't fatal
-	// (search will return IndexUnavailable errors until collection is ready).
+	// TODO: initialize DynamoDB client when forge SDK aws/dynamodb package is available
+	// See: komodo-forge-sdk-go/aws/dynamodb (planned)
 
-	// TODO(subscriber): start events-api subscriber in a background goroutine.
-	// subscriber.StartShopItemsSubscriber(ctx) listens for shop-item create/update/delete
-	// events and syncs them to the Typesense index.
-	// Only start after Typesense client is initialized.
-
-	searchMW := []func(http.Handler) http.Handler{
+	// Public slot routes — no auth required, rate limited
+	slotMW := []func(http.Handler) http.Handler{
 		mw.RequestIDMiddleware,
 		mw.TelemetryMiddleware,
 		mw.RateLimiterMiddleware,
@@ -74,13 +65,28 @@ func main() {
 		mw.SecurityHeadersMiddleware,
 	}
 
+	// Protected booking routes — auth required
+	bookingMW := append(slotMW,
+		mw.AuthMiddleware,
+		mw.CSRFMiddleware,
+		mw.NormalizationMiddleware,
+		mw.SanitizationMiddleware,
+	)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handlers.HealthHandler)
-	mux.Handle("GET /search", chain(http.HandlerFunc(handlers.Search), searchMW...))
 
-	// TODO(typesense): add index management routes (internal only):
-	//   POST /internal/index/sync  — full re-index from shop-items-api (manual trigger)
-	//   DELETE /internal/index     — drop and recreate collection (for schema changes)
+	mux.Handle("GET /slots", chain(http.HandlerFunc(handlers.GetAvailableSlots), slotMW...))
+	mux.Handle("GET /slots/{date}", chain(http.HandlerFunc(handlers.GetSlotsByDate), slotMW...))
+
+	mux.Handle("POST /bookings", chain(http.HandlerFunc(handlers.CreateBooking), bookingMW...))
+	mux.Handle("GET /bookings/{id}", chain(http.HandlerFunc(handlers.GetBooking), bookingMW...))
+	mux.Handle("PUT /bookings/{id}/cancel", chain(http.HandlerFunc(handlers.CancelBooking), bookingMW...))
+	mux.Handle("PUT /bookings/{id}/confirm", chain(http.HandlerFunc(handlers.ConfirmBooking), bookingMW...))
+
+	// TODO: add internal route for schedule sync (POST /internal/slots/sync)
+	// This is called by the external office scheduling system when technician availability changes.
+	// Should be on a separate internal port or protected by internal auth middleware.
 
 	server := &http.Server{
 		Addr:              ":" + config.GetConfigValue("PORT"),

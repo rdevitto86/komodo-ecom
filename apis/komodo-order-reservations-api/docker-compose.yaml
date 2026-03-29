@@ -1,13 +1,13 @@
-name: komodo-inventory-api
+name: komodo-order-reservations-api
 
 services:
-  inventory-api:
-    image: komodo-inventory-api:${VERSION:-dev}
+  order-reservations-api:
+    image: komodo-order-reservations-api:${VERSION:-dev}
     build:
       context: ..
-      dockerfile: komodo-inventory-api/Dockerfile
+      dockerfile: komodo-order-reservations-api/Dockerfile
       args:
-        DISTROLESS_TAG: ${DISTROLESS_TAG:-debug}
+        ENV: ${ENV:-local}
     restart: ${RESTART_POLICY:-no}
     deploy:
       resources:
@@ -16,22 +16,21 @@ services:
     env_file:
       - ../../infra/local/env.shared
     environment:
-      APP_NAME: komodo-inventory-api
-      PORT: :7044
+      APP_NAME: komodo-order-reservations-api
+      PORT: 7063
       VERSION: ${VERSION:-dev}
     ports:
-      - "7044:7044"
+      - "7063:7063"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7044/health"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7063/health"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 40s
     networks:
       - komodo-network
-
 networks:
   komodo-network:
     external: true

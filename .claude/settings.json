@@ -3,5 +3,8 @@
     "allow": [
       "WebFetch(domain:golangci-lint.run)"
     ]
+  },
+  "mcpServers": {
+    "_todo": "configure OpenClaw MCP server here — see .claude/settings.local.json.example for template"
   }
 }

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "openclaw": {
+      "command": "node",
+      "args": ["/path/to/openclaw/mcp-server.js"],
+      "env": {
+        "OPENCLAW_API_KEY": "<key>"
+      }
+    }
+  }
+}

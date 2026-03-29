@@ -3,21 +3,28 @@ name: komodo-local
 # ── Profile guide ──────────────────────────────────────────────────────────
 #
 #   Group profiles (for ad-hoc use):
-#     infra   → localstack + redis + auth-api   (always starts via make up)
+#     infra   → localstack + redis + auth-api   (always starts via just up)
 #     api     → all backend API services
 #     ui      → ui
 #     support → ssr-engine + future tooling
 #
-#   Per-service profiles (driven by infra/local/services.txt):
-#     auth-api, user-api, shop-items, order-api, payments-api,
-#     communications-api, search-api, reviews-api, ui, ssr-engine
+#   Per-service profiles:
+#     auth-api, event-bus-api,
+#     entitlements-api (*), features-api (*), address-api (*),
+#     shop-items-api, search-api, cart-api, shop-inventory-api,
+#     user-api, order-api, order-returns-api, order-reservations-api,
+#     payments-api, communications-api,
+#     loyalty-api, reviews-api, support-api,
+#     ui, ssr-engine
+#
+#   (*) No Dockerfile yet — stub entries below, uncomment when ready.
 #
 # Usage:
-#   make up                            # infra only
-#   make up API=1                      # infra + enabled APIs
-#   make up API=1 UI=1                 # infra + enabled APIs + ui
-#   make up API=1 PROXY=1              # route AWS calls to real dev endpoints
-#   make up API=1 UI=1 SUPPORT=1       # everything enabled in services.txt
+#   just up                  # infra only
+#   just up api              # infra + enabled APIs
+#   just up api ui           # infra + enabled APIs + ui
+#   just up api ui support   # everything
+#   just down
 #
 # ──────────────────────────────────────────────────────────────────────────
 
@@ -66,6 +73,97 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
     command: redis-server --requirepass test-password
+    networks:
+      - komodo-network
+
+  # ── UI — 7001 ─────────────────────────────────────────────────────────
+
+  ui:
+    profiles: [ui]
+    build:
+      context: ../../ui
+      target: dev
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    environment:
+      ENV: local
+      PORT: "7001"
+      LOG_LEVEL: debug
+    ports:
+      - "7001:7001"
+    volumes:
+      - ../../ui:/app
+      - /app/node_modules
+    depends_on:
+      auth-api-public:
+        condition: service_healthy
+    networks:
+      - komodo-network
+
+  # ── Event Bus API — 7002 ──────────────────────────────────────────────
+
+  event-bus-api:
+    profiles: [api, event-bus-api]
+    build:
+      context: ../..
+      dockerfile: apis/komodo-event-bus-api/Dockerfile
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    environment:
+      <<: *aws-local
+      APP_NAME: komodo-event-bus-api
+      ENV: local
+      PORT: ":7002"
+    ports:
+      - "7002:7002"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - localstack
+    networks:
+      - komodo-network
+
+  # ── SSR Engine — 7003 ─────────────────────────────────────────────────
+
+  ssr-engine:
+    profiles: [support, ssr-engine]
+    build:
+      context: ../..
+      dockerfile: apis/komodo-ssr-engine-svelte/Dockerfile
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    environment:
+      PORT: "7003"
+      NODE_ENV: development
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT: http://localstack:4566
+      S3_CONTENT_BUCKET: komodo-static-assets-dev
+      CLOUDFRONT_DISTRIBUTION_ID: ""
+    ports:
+      - "7003:7003"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:7003/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     networks:
       - komodo-network
 
@@ -130,6 +228,185 @@ services:
         condition: service_healthy
     network_mode: "service:auth-api-public"
 
+  # ── Entitlements API — 7021 ───────────────────────────────────────────
+  # TODO: no Dockerfile yet — uncomment when scaffolded
+  # entitlements-api:
+  #   profiles: [api, entitlements-api]
+  #   build:
+  #     context: ../..
+  #     dockerfile: apis/komodo-entitlements-api/Dockerfile
+  #   environment:
+  #     <<: *aws-local
+  #     APP_NAME: komodo-entitlements-api
+  #     ENV: local
+  #     PORT: ":7021"
+  #   ports:
+  #     - "7021:7021"
+
+  # ── Features API — 7022 ───────────────────────────────────────────────
+  # TODO: no Dockerfile yet — uncomment when scaffolded
+  # features-api:
+  #   profiles: [api, features-api]
+  #   build:
+  #     context: ../..
+  #     dockerfile: apis/komodo-features-api/Dockerfile
+  #   environment:
+  #     <<: *aws-local
+  #     APP_NAME: komodo-features-api
+  #     ENV: local
+  #     PORT: ":7022"
+  #   ports:
+  #     - "7022:7022"
+
+  # ── Address API — 7031 ────────────────────────────────────────────────
+  # TODO: no Dockerfile yet — uncomment when scaffolded
+  # address-api:
+  #   profiles: [api, address-api]
+  #   build:
+  #     context: ../..
+  #     dockerfile: apis/komodo-address-api/Dockerfile
+  #   environment:
+  #     <<: *aws-local
+  #     APP_NAME: komodo-address-api
+  #     ENV: local
+  #     PORT: ":7031"
+  #   ports:
+  #     - "7031:7031"
+
+  # ── Shop Items API — 7041 ─────────────────────────────────────────────
+
+  shop-items-api:
+    profiles: [api, shop-items-api]
+    build:
+      context: ../..
+      dockerfile: apis/komodo-shop-items-api/Dockerfile
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    environment:
+      <<: *aws-local
+      APP_NAME: komodo-shop-items-api
+      ENV: local
+      PORT: ":7041"
+      EVAL_RULES_PATH: /app/config/validation_rules.yml
+    ports:
+      - "7041:7041"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7041/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - localstack
+    networks:
+      - komodo-network
+
+  # ── Search API — 7042 ─────────────────────────────────────────────────
+
+  search-api:
+    profiles: [api, search-api]
+    build:
+      context: ../..
+      dockerfile: apis/komodo-search-api/Dockerfile
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    environment:
+      <<: *aws-local
+      APP_NAME: komodo-search-api
+      ENV: local
+      PORT: ":7042"
+      # TODO(typesense): add Typesense service to this compose file and wire these vars.
+      # TYPESENSE_HOST: typesense
+      # TYPESENSE_PORT: "8108"
+      # TYPESENSE_API_KEY: local-dev-key
+      # TYPESENSE_COLLECTION: shop_items
+    ports:
+      - "7042:7042"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7042/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - localstack
+    networks:
+      - komodo-network
+
+  # ── Cart API — 7043 ───────────────────────────────────────────────────
+
+  cart-api:
+    profiles: [api, cart-api]
+    build:
+      context: ../..
+      dockerfile: apis/komodo-cart-api/Dockerfile
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    environment:
+      <<: *aws-local
+      APP_NAME: komodo-cart-api
+      ENV: local
+      PORT: ":7043"
+    ports:
+      - "7043:7043"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7043/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - localstack
+    networks:
+      - komodo-network
+
+  # ── Shop Inventory API — 7044 ─────────────────────────────────────────
+
+  shop-inventory-api:
+    profiles: [api, shop-inventory-api]
+    build:
+      context: ../..
+      dockerfile: apis/komodo-shop-inventory-api/Dockerfile
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    environment:
+      <<: *aws-local
+      APP_NAME: komodo-shop-inventory-api
+      ENV: local
+      PORT: ":7044"
+    ports:
+      - "7044:7044"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7044/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - localstack
+    networks:
+      - komodo-network
+
   # ── User API — 7051 public · 7052 internal ────────────────────────────
 
   user-api-public:
@@ -192,39 +469,6 @@ services:
         condition: service_healthy
     network_mode: "service:user-api-public"
 
-  # ── Shop Items API — 7041 ─────────────────────────────────────────────
-
-  shop-items-api:
-    profiles: [api, shop-items]
-    build:
-      context: ../..
-      dockerfile: apis/komodo-shop-items-api/Dockerfile
-    restart: "no"
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    environment:
-      <<: *aws-local
-      APP_NAME: komodo-shop-items-api
-      ENV: local
-      PORT: ":7041"
-      EVAL_RULES_PATH: /app/config/validation_rules.yml
-    ports:
-      - "7041:7041"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7041/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 40s
-    depends_on:
-      - localstack
-    networks:
-      - komodo-network
-
   # ── Order API — 7061 ──────────────────────────────────────────────────
 
   order-api:
@@ -248,6 +492,70 @@ services:
       - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:7061/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - localstack
+    networks:
+      - komodo-network
+
+  # ── Order Returns API — 7062 ──────────────────────────────────────────
+
+  order-returns-api:
+    profiles: [api, order-returns-api]
+    build:
+      context: ../..
+      dockerfile: apis/komodo-order-returns-api/Dockerfile
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    environment:
+      <<: *aws-local
+      APP_NAME: komodo-order-returns-api
+      ENV: local
+      PORT: ":7062"
+    ports:
+      - "7062:7062"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7062/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - localstack
+    networks:
+      - komodo-network
+
+  # ── Order Reservations API — 7063 ─────────────────────────────────────
+
+  order-reservations-api:
+    profiles: [api, order-reservations-api]
+    build:
+      context: ../..
+      dockerfile: apis/komodo-order-reservations-api/Dockerfile
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    environment:
+      <<: *aws-local
+      APP_NAME: komodo-order-reservations-api
+      ENV: local
+      PORT: ":7063"
+    ports:
+      - "7063:7063"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7063/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -321,13 +629,13 @@ services:
     networks:
       - komodo-network
 
-  # ── Search API — 7042 ─────────────────────────────────────────────────
+  # ── Loyalty API — 7091 ────────────────────────────────────────────────
 
-  search-api:
-    profiles: [api, search-api]
+  loyalty-api:
+    profiles: [api, loyalty-api]
     build:
       context: ../..
-      dockerfile: apis/komodo-search-api/Dockerfile
+      dockerfile: apis/komodo-loyalty-api/Dockerfile
     restart: "no"
     deploy:
       resources:
@@ -335,15 +643,15 @@ services:
           memory: 256M
     environment:
       <<: *aws-local
-      APP_NAME: komodo-search-api
+      APP_NAME: komodo-loyalty-api
       ENV: local
-      PORT: ":7042"
+      PORT: ":7091"
     ports:
-      - "7042:7042"
+      - "7091:7091"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7042/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:7091/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -385,61 +693,34 @@ services:
     networks:
       - komodo-network
 
-  # ── UI — 7001 ─────────────────────────────────────────────────────────
+  # ── Support API — 7101 ────────────────────────────────────────────────
 
-  ui:
-    profiles: [ui]
-    build:
-      context: ../../ui
-      target: dev
-    restart: "no"
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    environment:
-      ENV: local
-      PORT: "7001"
-      LOG_LEVEL: debug
-    ports:
-      - "7001:7001"
-    volumes:
-      - ../../ui:/app
-      - /app/node_modules
-    depends_on:
-      auth-api-public:
-        condition: service_healthy
-    networks:
-      - komodo-network
-
-  # ── SSR Engine — 7003 ─────────────────────────────────────────────────
-
-  ssr-engine:
-    profiles: [support, ssr-engine]
+  support-api:
+    profiles: [api, support-api]
     build:
       context: ../..
-      dockerfile: apis/komodo-ssr-engine-svelte/Dockerfile
+      dockerfile: apis/komodo-support-api/Dockerfile
     restart: "no"
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 256M
     environment:
-      PORT: "7003"
-      NODE_ENV: development
-      AWS_REGION: us-east-1
-      AWS_ENDPOINT: http://localstack:4566
-      S3_CONTENT_BUCKET: komodo-static-assets-dev
-      CLOUDFRONT_DISTRIBUTION_ID: ""
+      <<: *aws-local
+      APP_NAME: komodo-support-api
+      ENV: local
+      PORT: ":7101"
     ports:
-      - "7003:7003"
+      - "7101:7101"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "bun", "-e", "fetch('http://localhost:7003/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:7101/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 40s
+    depends_on:
+      - localstack
     networks:
       - komodo-network

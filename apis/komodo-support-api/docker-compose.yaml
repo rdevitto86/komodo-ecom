@@ -19,6 +19,7 @@ services:
       APP_NAME: komodo-support-api
       PORT: 7101
       VERSION: ${VERSION:-dev}
+      EVAL_RULES_PATH: /app/config/validation_rules.yaml
     ports:
       - "7101:7101"
     extra_hosts:

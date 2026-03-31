@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-AWS_REGION="${AWS_REGION:-us-east-1}"
+AWS_REGION="${AWS_REGION:-us-east-2}"
 REPO_DIR="/opt/komodo"
 
 echo "==> Installing Docker"

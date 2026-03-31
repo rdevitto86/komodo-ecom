@@ -10,11 +10,8 @@
 #   lenient — validate declared constraints; missing API version is allowed
 #   strict  — version header required; all declared constraints enforced
 #
-# Routes without a version prefix (/me/*, /users/*) use "lenient".
+# Routes without a version prefix (/me/*, /orders/*) use "lenient".
 # Upgrade individual routes to "strict" once API versioning is introduced.
-#
-# Path param pattern for all resource IDs (usr_xxx, addr_xxx, pay_xxx):
-#   ^[a-z]{2,6}_[a-zA-Z0-9]{12,32}$
 #
 
 rules:
@@ -27,9 +24,9 @@ rules:
       level: "ignore"
 
   # ---------------------------------------------------------------------------
-  # Profile — /me/profile
+  # User orders — /me/orders
   # ---------------------------------------------------------------------------
-  "/me/profile":
+  "/me/orders":
     GET:
       level: "lenient"
       headers:
@@ -47,27 +44,53 @@ rules:
           required: true
           value: "application/json"
       body:
-        username:
+        items:
+          type: "array"
+          required: true
+        address_id:
           type: "string"
           required: true
-        email:
+        payment_method_id:
           type: "string"
           required: true
-        first_name:
+
+  "/me/orders/{orderId}":
+    GET:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+      params:
+        orderId:
           type: "string"
           required: true
-        last_name:
+
+    DELETE:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+      params:
+        orderId:
           type: "string"
           required: true
-        phone:
+
+  # ---------------------------------------------------------------------------
+  # Internal orders — /orders (service-to-service, internal JWT)
+  # ---------------------------------------------------------------------------
+  "/orders/{orderId}":
+    GET:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+      params:
+        orderId:
           type: "string"
-          required: false
-        middle_initial:
-          type: "string"
-          required: false
-        avatar_url:
-          type: "string"
-          required: false
+          required: true
 
     PUT:
       level: "lenient"
@@ -78,40 +101,19 @@ rules:
         Content-Type:
           required: true
           value: "application/json"
-      body:
-        username:
+      params:
+        orderId:
           type: "string"
-          required: false
-        email:
-          type: "string"
-          required: false
-        first_name:
-          type: "string"
-          required: false
-        last_name:
-          type: "string"
-          required: false
-        phone:
-          type: "string"
-          required: false
-        middle_initial:
-          type: "string"
-          required: false
-        avatar_url:
-          type: "string"
-          required: false
-
-    DELETE:
-      level: "lenient"
-      headers:
-        Authorization:
           required: true
-          value: "Bearer *"
+      body:
+        status:
+          type: "string"
+          required: true
 
   # ---------------------------------------------------------------------------
-  # Addresses — /me/addresses
+  # User returns — /me/returns
   # ---------------------------------------------------------------------------
-  "/me/addresses":
+  "/me/returns":
     GET:
       level: "lenient"
       headers:
@@ -129,82 +131,32 @@ rules:
           required: true
           value: "application/json"
       body:
-        line1:
+        order_id:
           type: "string"
           required: true
-        city:
+        items:
+          type: "array"
+          required: true
+        reason:
           type: "string"
           required: true
-        state:
-          type: "string"
-          required: true
-        zip_code:
-          type: "string"
-          required: true
-        country:
-          type: "string"
-          required: true
-        alias:
-          type: "string"
-          required: false
-        line2:
-          type: "string"
-          required: false
 
-  "/me/addresses/{id}":
-    PUT:
-      level: "lenient"
-      headers:
-        Authorization:
-          required: true
-          value: "Bearer *"
-        Content-Type:
-          required: true
-          value: "application/json"
-      params:
-        id:
-          type: "string"
-          required: true
-          pattern: "^[a-z]{2,6}_[a-zA-Z0-9]{12,32}$"
-      body:
-        line1:
-          type: "string"
-          required: false
-        line2:
-          type: "string"
-          required: false
-        city:
-          type: "string"
-          required: false
-        state:
-          type: "string"
-          required: false
-        zip_code:
-          type: "string"
-          required: false
-        country:
-          type: "string"
-          required: false
-        alias:
-          type: "string"
-          required: false
-
-    DELETE:
+  "/me/returns/{returnId}":
+    GET:
       level: "lenient"
       headers:
         Authorization:
           required: true
           value: "Bearer *"
       params:
-        id:
+        returnId:
           type: "string"
           required: true
-          pattern: "^[a-z]{2,6}_[a-zA-Z0-9]{12,32}$"
 
   # ---------------------------------------------------------------------------
-  # Payments — /me/payments
+  # User exchanges — /me/exchanges
   # ---------------------------------------------------------------------------
-  "/me/payments":
+  "/me/exchanges":
     GET:
       level: "lenient"
       headers:
@@ -212,43 +164,7 @@ rules:
           required: true
           value: "Bearer *"
 
-    PUT:
-      level: "lenient"
-      headers:
-        Authorization:
-          required: true
-          value: "Bearer *"
-        Content-Type:
-          required: true
-          value: "application/json"
-      # TODO: add specific body field rules once payment token schema is defined
-      # (provider token, billing zip, card type, etc.)
-
-  "/me/payments/{id}":
-    DELETE:
-      level: "lenient"
-      headers:
-        Authorization:
-          required: true
-          value: "Bearer *"
-      params:
-        id:
-          type: "string"
-          required: true
-          pattern: "^[a-z]{2,6}_[a-zA-Z0-9]{12,32}$"
-
-  # ---------------------------------------------------------------------------
-  # Preferences — /me/preferences
-  # ---------------------------------------------------------------------------
-  "/me/preferences":
-    GET:
-      level: "lenient"
-      headers:
-        Authorization:
-          required: true
-          value: "Bearer *"
-
-    PUT:
+    POST:
       level: "lenient"
       headers:
         Authorization:
@@ -258,16 +174,24 @@ rules:
           required: true
           value: "application/json"
       body:
-        language:
+        order_id:
           type: "string"
-          required: false
-        timezone:
-          type: "string"
-          required: false
+          required: true
+        return_items:
+          type: "array"
+          required: true
+        exchange_items:
+          type: "array"
+          required: true
 
-    DELETE:
+  "/me/exchanges/{exchangeId}":
+    GET:
       level: "lenient"
       headers:
         Authorization:
           required: true
           value: "Bearer *"
+      params:
+        exchangeId:
+          type: "string"
+          required: true

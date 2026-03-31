@@ -22,7 +22,7 @@ CFN_DIR="$REPO_ROOT/infra/deploy/cfn"
 STACK_NAME="komodo-services-$ENV"
 
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-AWS_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+AWS_REGION=${AWS_DEFAULT_REGION:-us-east-2}
 
 echo "==> Deploying services stack: $STACK_NAME"
 echo "    Image tag: $IMAGE_TAG"

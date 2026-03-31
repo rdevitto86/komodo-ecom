@@ -19,7 +19,7 @@ services:
       APP_NAME: komodo-order-api
       PORT: 7061
       VERSION: ${VERSION:-dev}
-      EVAL_RULES_PATH: /app/config/validation_rules.yml
+      EVAL_RULES_PATH: /app/config/validation_rules.yaml
     ports:
       - "7061:7061"
     extra_hosts:

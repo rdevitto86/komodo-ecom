@@ -19,6 +19,7 @@ services:
       APP_NAME: komodo-returns-api
       PORT: :7062
       VERSION: ${VERSION:-dev}
+      EVAL_RULES_PATH: /app/config/validation_rules.yaml
     ports:
       - "7062:7062"
     extra_hosts:

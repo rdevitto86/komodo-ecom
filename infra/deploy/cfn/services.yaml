@@ -42,7 +42,7 @@ Parameters:
 
   AWSRegion:
     Type: String
-    Default: us-east-1
+    Default: us-east-2
 
 # ---------------------------------------------------------------------------
 # Resources

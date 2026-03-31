@@ -19,6 +19,7 @@ services:
       APP_NAME: komodo-shop-inventory-api
       PORT: :7044
       VERSION: ${VERSION:-dev}
+      EVAL_RULES_PATH: /app/config/validation_rules.yaml
     ports:
       - "7044:7044"
     extra_hosts:

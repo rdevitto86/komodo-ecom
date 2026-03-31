@@ -1,0 +1,202 @@
+#  ____        _        ____             __ _
+# |  _ \ _   _| | ___  / ___|___  _ __  / _(_) __ _
+# | |_) | | | |/ _ \| |   / _ \| '_ \| |_| |/ _` |
+# |  _ <| |_| | |  __/| |__| (_) | | | |  _| | (_| |
+# |_| \_\\__,_|_|\___| \____\___/|_| |_|_| |_|\__, |
+#                                               |___/
+#
+# Validation Levels:
+#   ignore  — skip all validation (health checks, public probes)
+#   lenient — validate declared constraints; missing API version is allowed
+#   strict  — version header required; all declared constraints enforced
+#
+# Routes without a version prefix (/me/*, /cart/*) use "lenient".
+# Upgrade individual routes to "strict" once API versioning is introduced.
+#
+
+rules:
+
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  "/health":
+    GET:
+      level: "ignore"
+
+  # ---------------------------------------------------------------------------
+  # Authenticated cart — /me/cart
+  # ---------------------------------------------------------------------------
+  "/me/cart":
+    GET:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+
+    DELETE:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+
+  "/me/cart/merge":
+    POST:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+        Content-Type:
+          required: true
+          value: "application/json"
+      body:
+        guest_cart_id:
+          type: "string"
+          required: true
+
+  "/me/cart/items":
+    POST:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+        Content-Type:
+          required: true
+          value: "application/json"
+      body:
+        item_id:
+          type: "string"
+          required: true
+        sku:
+          type: "string"
+          required: true
+        quantity:
+          type: "number"
+          required: true
+
+  "/me/cart/items/{itemId}":
+    PUT:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+        Content-Type:
+          required: true
+          value: "application/json"
+      params:
+        itemId:
+          type: "string"
+          required: true
+      body:
+        quantity:
+          type: "number"
+          required: true
+
+    DELETE:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+      params:
+        itemId:
+          type: "string"
+          required: true
+
+  "/me/cart/checkout":
+    POST:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+
+  # ---------------------------------------------------------------------------
+  # Guest cart — /cart
+  # ---------------------------------------------------------------------------
+  "/cart":
+    POST:
+      level: "lenient"
+
+  "/cart/{cartId}":
+    GET:
+      level: "lenient"
+      headers:
+        X-Session-ID:
+          required: true
+      params:
+        cartId:
+          type: "string"
+          required: true
+
+    DELETE:
+      level: "lenient"
+      headers:
+        X-Session-ID:
+          required: true
+      params:
+        cartId:
+          type: "string"
+          required: true
+
+  "/cart/{cartId}/items":
+    POST:
+      level: "lenient"
+      headers:
+        X-Session-ID:
+          required: true
+        Content-Type:
+          required: true
+          value: "application/json"
+      params:
+        cartId:
+          type: "string"
+          required: true
+      body:
+        item_id:
+          type: "string"
+          required: true
+        sku:
+          type: "string"
+          required: true
+        quantity:
+          type: "number"
+          required: true
+
+  "/cart/{cartId}/items/{itemId}":
+    PUT:
+      level: "lenient"
+      headers:
+        X-Session-ID:
+          required: true
+        Content-Type:
+          required: true
+          value: "application/json"
+      params:
+        cartId:
+          type: "string"
+          required: true
+        itemId:
+          type: "string"
+          required: true
+      body:
+        quantity:
+          type: "number"
+          required: true
+
+    DELETE:
+      level: "lenient"
+      headers:
+        X-Session-ID:
+          required: true
+      params:
+        cartId:
+          type: "string"
+          required: true
+        itemId:
+          type: "string"
+          required: true

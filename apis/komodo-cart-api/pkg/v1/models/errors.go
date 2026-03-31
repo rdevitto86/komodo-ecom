@@ -6,17 +6,25 @@ import (
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 )
 
+// CartError wraps an ErrorCode so it can be returned as an error from service functions.
+// Handlers unwrap it back to ErrorCode via the As method for SendError.
+type CartError struct {
+	Code httpErr.ErrorCode
+}
+
+func (e CartError) Error() string { return e.Code.Message }
+
 // 43xxx — komodo-cart-api (see forge-sdk ranges.go)
 type CartAPIErrors struct {
-	NotFound       httpErr.ErrorCode
-	ItemNotInCart  httpErr.ErrorCode
-	Expired        httpErr.ErrorCode
-	CheckoutFailed httpErr.ErrorCode
+	NotFound       CartError
+	ItemNotInCart  CartError
+	Expired        CartError
+	CheckoutFailed CartError
 }
 
 var Err = CartAPIErrors{
-	NotFound:       httpErr.ErrorCode{ID: httpErr.CodeID(httpErr.RangeCart, 1), Status: http.StatusNotFound, Message: "Cart not found"},
-	ItemNotInCart:  httpErr.ErrorCode{ID: httpErr.CodeID(httpErr.RangeCart, 2), Status: http.StatusNotFound, Message: "Item not in cart"},
-	Expired:        httpErr.ErrorCode{ID: httpErr.CodeID(httpErr.RangeCart, 3), Status: http.StatusGone, Message: "Cart expired"},
-	CheckoutFailed: httpErr.ErrorCode{ID: httpErr.CodeID(httpErr.RangeCart, 4), Status: http.StatusConflict, Message: "Checkout failed"},
+	NotFound:       CartError{Code: httpErr.ErrorCode{ID: httpErr.CodeID(httpErr.RangeCart, 1), Status: http.StatusNotFound, Message: "Cart not found"}},
+	ItemNotInCart:  CartError{Code: httpErr.ErrorCode{ID: httpErr.CodeID(httpErr.RangeCart, 2), Status: http.StatusNotFound, Message: "Item not in cart"}},
+	Expired:        CartError{Code: httpErr.ErrorCode{ID: httpErr.CodeID(httpErr.RangeCart, 3), Status: http.StatusGone, Message: "Cart expired"}},
+	CheckoutFailed: CartError{Code: httpErr.ErrorCode{ID: httpErr.CodeID(httpErr.RangeCart, 4), Status: http.StatusConflict, Message: "Checkout failed"}},
 }

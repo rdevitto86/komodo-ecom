@@ -19,7 +19,7 @@ services:
       APP_NAME: komodo-shop-items-api
       PORT: 7041
       VERSION: ${VERSION:-dev}
-      EVAL_RULES_PATH: /app/config/validation_rules.yml
+      EVAL_RULES_PATH: /app/config/validation_rules.yaml
     ports:
       - "7041:7041"
     extra_hosts:

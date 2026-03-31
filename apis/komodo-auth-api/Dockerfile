@@ -16,6 +16,6 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/komodo ./cmd/${BUILD_
 
 FROM gcr.io/distroless/base-debian12:${DISTROLESS_TAG}
 COPY --from=build /bin/komodo /komodo
-COPY --from=build /app/internal/config/validation_rules.yml /app/config/validation_rules.yml
+COPY --from=build /app/internal/config/validation_rules.yaml /app/config/validation_rules.yaml
 EXPOSE 7011 7012
 ENTRYPOINT ["/komodo"]

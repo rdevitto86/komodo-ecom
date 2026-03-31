@@ -5,7 +5,7 @@ name: komodo-ec2
 # run here. Everything else is Lambda (see deploy/README.md).
 #
 # Usage:
-#   export ECR_URI=<account>.dkr.ecr.us-east-1.amazonaws.com
+#   export ECR_URI=<account>.dkr.ecr.us-east-2.amazonaws.com
 #   export IMAGE_TAG=<git-sha>
 #   docker compose -f deploy/ec2/docker-compose.yaml --env-file deploy/ec2/.env up -d
 #
@@ -43,7 +43,7 @@ services:
       ENV: ${ENV:-prod}
       PORT: 7011
       INTERNAL_PORT: 7012
-      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_REGION: ${AWS_REGION:-us-east-2}
       AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
       AWS_SECRET_BATCH: ${AWS_SECRET_BATCH:-true}
     deploy:
@@ -71,7 +71,7 @@ services:
       ENV: ${ENV:-prod}
       PORT: 7051
       INTERNAL_PORT: 7052
-      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_REGION: ${AWS_REGION:-us-east-2}
       AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
       AWS_SECRET_BATCH: ${AWS_SECRET_BATCH:-true}
     deploy:
@@ -99,10 +99,10 @@ services:
       ENV: ${ENV:-prod}
       PORT: 7041
       INTERNAL_PORT: 7042
-      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_REGION: ${AWS_REGION:-us-east-2}
       AWS_SECRET_PREFIX: ${AWS_SECRET_PREFIX}
       AWS_SECRET_BATCH: ${AWS_SECRET_BATCH:-true}
-      EVAL_RULES_PATH: /app/config/validation_rules.yml
+      EVAL_RULES_PATH: /app/config/validation_rules.yaml
     deploy:
       resources:
         limits:

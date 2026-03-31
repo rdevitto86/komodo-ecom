@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"komodo-address-api/internal/handlers"
+	"komodo-address-api/internal/provider"
 
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
 	"github.com/rdevitto86/komodo-forge-sdk-go/config"
@@ -66,12 +67,14 @@ func main() {
 		mw.SanitizationMiddleware,
 	}
 
+	providerClient := provider.NewClient(config.GetConfigValue("ADDRESS_PROVIDER_API_KEY"))
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", handlers.Health)
-	mux.Handle("POST /addresses/validate", mw.Chain(handlers.Validate, stack...))
-	mux.Handle("POST /addresses/normalize", mw.Chain(handlers.Normalize, stack...))
-	mux.Handle("POST /addresses/geocode", mw.Chain(handlers.Geocode, stack...))
+	mux.Handle("POST /addresses/validate", mw.Chain(handlers.Validate(providerClient), stack...))
+	mux.Handle("POST /addresses/normalize", mw.Chain(handlers.Normalize(providerClient), stack...))
+	mux.Handle("POST /addresses/geocode", mw.Chain(handlers.Geocode(providerClient), stack...))
 
 	server := &http.Server{
 		Handler:           mux,

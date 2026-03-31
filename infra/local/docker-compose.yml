@@ -35,7 +35,7 @@ networks:
 
 # Shared AWS env blocks
 x-aws-local: &aws-local
-  AWS_REGION: us-east-1
+  AWS_REGION: us-east-2
   AWS_ENDPOINT: http://localstack:4566
   AWS_SECRET_PREFIX: komodo/local
   AWS_SECRET_BATCH: "true"
@@ -150,7 +150,7 @@ services:
     environment:
       PORT: "7003"
       NODE_ENV: development
-      AWS_REGION: us-east-1
+      AWS_REGION: us-east-2
       AWS_ENDPOINT: http://localstack:4566
       S3_CONTENT_BUCKET: komodo-static-assets-dev
       CLOUDFRONT_DISTRIBUTION_ID: ""

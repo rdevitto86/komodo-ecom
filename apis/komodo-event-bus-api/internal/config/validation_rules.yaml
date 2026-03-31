@@ -1,0 +1,57 @@
+#  ____        _        ____             __ _
+# |  _ \ _   _| | ___  / ___|___  _ __  / _(_) __ _
+# | |_) | | | | |/ _ \| |   / _ \| '_ \| |_| |/ _` |
+# |  _ <| |_| | |  __/| |__| (_) | | | |  _| | (_| |
+# |_| \_\\__,_|_|\___| \____\___/|_| |_|_| |_|\__, |
+#                                               |___/
+#
+# Validation Levels:
+#   ignore  — skip all validation (health checks, public probes)
+#   lenient — validate declared constraints; missing API version is allowed
+#   strict  — version header required; all declared constraints enforced
+#
+# All routes except /health require an internal service JWT (client_credentials scope).
+# Upgrade individual routes to "strict" once API versioning is introduced.
+#
+
+rules:
+
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  "/health":
+    GET:
+      level: "ignore"
+
+  # ---------------------------------------------------------------------------
+  # Events — POST /events (internal JWT required)
+  # ---------------------------------------------------------------------------
+  "/events":
+    POST:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+        Content-Type:
+          required: true
+          value: "application/json"
+      body:
+        id:
+          type: "string"
+          required: true
+        type:
+          type: "string"
+          required: true
+        version:
+          type: "string"
+          required: true
+        source:
+          type: "string"
+          required: true
+        occurred_at:
+          type: "string"
+          required: true
+        payload:
+          type: "object"
+          required: true

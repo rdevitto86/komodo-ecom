@@ -1,0 +1,101 @@
+#  ____        _        ____             __ _
+# |  _ \ _   _| | ___  / ___|___  _ __  / _(_) __ _
+# | |_) | | | | |/ _ \| |   / _ \| '_ \| |_| |/ _` |
+# |  _ <| |_| | |  __/| |__| (_) | | | |  _| | (_| |
+# |_| \_\\__,_|_|\___| \____\___/|_| |_|_| |_|\__, |
+#                                               |___/
+#
+# Validation Levels:
+#   ignore  — skip all validation (health checks, public probes)
+#   lenient — validate declared constraints; missing API version is allowed
+#   strict  — version header required; all declared constraints enforced
+#
+# Public routes (no auth): /health, /.well-known/jwks.json, /oauth/token, /oauth/authorize
+# Protected routes (client_credentials Bearer token): /oauth/introspect, /oauth/revoke
+# Upgrade individual routes to "strict" once API versioning is introduced.
+#
+
+rules:
+
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  "/health":
+    GET:
+      level: "ignore"
+
+  # ---------------------------------------------------------------------------
+  # JWKS — public key set
+  # ---------------------------------------------------------------------------
+  "/.well-known/jwks.json":
+    GET:
+      level: "ignore"
+
+  # ---------------------------------------------------------------------------
+  # OAuth — token issuance (public, no auth)
+  # ---------------------------------------------------------------------------
+  "/oauth/token":
+    POST:
+      level: "lenient"
+      headers:
+        Content-Type:
+          required: true
+          value: "application/json"
+      body:
+        clientId:
+          type: "string"
+          required: true
+        clientSecret:
+          type: "string"
+          required: true
+        grantType:
+          type: "string"
+          required: true
+        scope:
+          type: "string"
+          required: false
+        refreshToken:
+          type: "string"
+          required: false
+        code:
+          type: "string"
+          required: false
+
+  # ---------------------------------------------------------------------------
+  # OAuth — authorization code redirect (public, no auth)
+  # ---------------------------------------------------------------------------
+  "/oauth/authorize":
+    GET:
+      level: "lenient"
+
+  # ---------------------------------------------------------------------------
+  # OAuth — token introspection (client_credentials Bearer token required)
+  # ---------------------------------------------------------------------------
+  "/oauth/introspect":
+    POST:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+        Content-Type:
+          required: true
+          value: "application/json"
+
+  # ---------------------------------------------------------------------------
+  # OAuth — token revocation (client_credentials Bearer token required)
+  # ---------------------------------------------------------------------------
+  "/oauth/revoke":
+    POST:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+        Content-Type:
+          required: true
+          value: "application/json"
+      body:
+        token:
+          type: "string"
+          required: true

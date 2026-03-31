@@ -43,6 +43,41 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /me/cart/merge:
+    post:
+      summary: Merge a guest cart into the authenticated cart
+      operationId: mergeGuestCart
+      description: |
+        Merges items from a guest cart (Redis) into the authenticated user's cart (DynamoDB).
+        Quantities are additive for duplicate items; authenticated cart wins on price/name conflicts.
+        The guest cart Redis key is deleted after a successful merge.
+        Returns the merged cart — no separate GET needed.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MergeCartRequest"
+      responses:
+        "200":
+          description: Guest cart merged, merged cart returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Guest cart not found (missing or expired — both return 404)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
   /me/cart/items:
     post:
       summary: Add item to authenticated cart
@@ -327,6 +362,17 @@ components:
           description: Price snapshot at add-time
         image_url:
           type: string
+
+    MergeCartRequest:
+      type: object
+      required: [guest_cart_id]
+      properties:
+        guest_cart_id:
+          type: string
+          format: uuid
+          description: |
+            UUID of the guest cart to merge. Generated client-side by the UI,
+            stored in localStorage, and sent here after login.
 
     AddItemRequest:
       type: object

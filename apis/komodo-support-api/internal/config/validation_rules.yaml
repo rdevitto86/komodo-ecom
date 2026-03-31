@@ -1,0 +1,86 @@
+#  ____        _        ____             __ _
+# |  _ \ _   _| | ___  / ___|___  _ __  / _(_) __ _
+# | |_) | | | | |/ _ \| |   / _ \| '_ \| |_| |/ _` |
+# |  _ <| |_| | |  __/| |__| (_) | | | |  _| | (_| |
+# |_| \_\\__,_|_|\___| \____\___/|_| |_|_| |_|\__, |
+#                                               |___/
+#
+# Validation Levels:
+#   ignore  — skip all validation (health checks, public probes)
+#   lenient — validate declared constraints; missing API version is allowed
+#   strict  — version header required; all declared constraints enforced
+#
+# Public/anonymous routes: /chat/session, /chat/message, /chat/history, /chat/escalate
+#   (accept either session cookie or JWT — auth not enforced at validation layer)
+# JWT-required routes: /me/chat/history
+# Upgrade individual routes to "strict" once API versioning is introduced.
+#
+
+rules:
+
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  "/health":
+    GET:
+      level: "ignore"
+
+  # ---------------------------------------------------------------------------
+  # Chat session — /chat/session (anonymous, cookie-based)
+  # ---------------------------------------------------------------------------
+  "/chat/session":
+    POST:
+      level: "lenient"
+
+    GET:
+      level: "lenient"
+
+  # ---------------------------------------------------------------------------
+  # Chat message — /chat/message (cookie or JWT)
+  # ---------------------------------------------------------------------------
+  "/chat/message":
+    POST:
+      level: "lenient"
+      headers:
+        Content-Type:
+          required: true
+          value: "application/json"
+      body:
+        message:
+          type: "string"
+          required: true
+
+  # ---------------------------------------------------------------------------
+  # Chat history — /chat/history (cookie or JWT)
+  # ---------------------------------------------------------------------------
+  "/chat/history":
+    GET:
+      level: "lenient"
+
+    DELETE:
+      level: "lenient"
+
+  # ---------------------------------------------------------------------------
+  # Chat escalation — /chat/escalate (cookie or JWT)
+  # ---------------------------------------------------------------------------
+  "/chat/escalate":
+    POST:
+      level: "lenient"
+
+  # ---------------------------------------------------------------------------
+  # Authenticated chat history — /me/chat/history (JWT required)
+  # ---------------------------------------------------------------------------
+  "/me/chat/history":
+    GET:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+
+    DELETE:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"

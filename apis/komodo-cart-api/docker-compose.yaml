@@ -1,0 +1,38 @@
+name: komodo-cart-api
+
+services:
+  cart-api:
+    image: komodo-cart-api:${VERSION:-dev}
+    build:
+      context: ..
+      dockerfile: komodo-cart-api/Dockerfile
+      args:
+        DISTROLESS_TAG: ${DISTROLESS_TAG:-debug}
+    restart: ${RESTART_POLICY:-no}
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_LIMIT:-512M}
+    env_file:
+      - ../../infra/local/env.shared
+    environment:
+      APP_NAME: komodo-cart-api
+      PORT: 7043
+      VERSION: ${VERSION:-dev}
+      EVAL_RULES_PATH: /app/config/validation_rules.yaml
+    ports:
+      - "7043:7043"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7043/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - komodo-network
+
+networks:
+  komodo-network:
+    external: true

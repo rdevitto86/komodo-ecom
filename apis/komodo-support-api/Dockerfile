@@ -1,6 +1,5 @@
 FROM golang:1.26 AS build
 
-COPY komodo-forge-sdk-go /komodo-forge-sdk-go
 
 WORKDIR /app
 

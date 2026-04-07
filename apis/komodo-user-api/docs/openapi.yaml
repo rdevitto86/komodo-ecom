@@ -441,11 +441,9 @@ components:
   schemas:
     User:
       type: object
-      required: [user_id, username, email, first_name, last_name, created_at, updated_at]
+      required: [user_id, email, first_name, last_name, created_at, updated_at]
       properties:
         user_id:
-          type: string
-        username:
           type: string
         email:
           type: string
@@ -473,10 +471,8 @@ components:
 
     CreateUserRequest:
       type: object
-      required: [username, email, first_name, last_name]
+      required: [email, first_name, last_name]
       properties:
-        username:
-          type: string
         email:
           type: string
           format: email
@@ -496,8 +492,6 @@ components:
     UpdateUserRequest:
       type: object
       properties:
-        username:
-          type: string
         phone:
           type: string
         first_name:

@@ -10,6 +10,7 @@ out/
 # Environment variables
 .env
 .env.*
+!.env.mock
 env/*
 
 # IDE/Editor files

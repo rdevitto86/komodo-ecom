@@ -33,7 +33,7 @@ Agent profiles live at the monorepo root in `.claude/agents/`. See root `CLAUDE.
 - **Styling:** Tailwind CSS v4 (vite plugin), `tw-animate-css`, `class-variance-authority`, `tailwind-merge`
 - **3D / Animation:** Threlte (Three.js), GSAP, Lenis (smooth scroll), Postprocessing
 - **Auth:** JWT RS256 via `komodo-auth-api` (7011). Validated server-side in `+layout.server.ts`.
-- **SDK:** `komodo-forge-sdk-ts` (types, API clients)
+- **SDK:** [`komodo-forge-sdk-ts`](https://github.com/rdevitto86/komodo-forge-sdk-ts) (types, API clients)
 - **Tests:** `bun run test:unit` (Vitest + Testing Library), `bun run test:e2e` (Playwright)
 
 ## Deployment Strategy
@@ -71,7 +71,12 @@ cd ui && bun run dev:mock   # mock mode (no backend needed)
 - **Types:** `src/lib/types/` — shared TypeScript types
 - **Server logic:** `src/lib/server/` — never imported in client code
 - **Errors:** Typed error objects. Surface at boundaries only.
-- **Tests:** `*.test.ts` adjacent to source in `__tests__/`. E2E in `e2e/`.
+- **Tests:** `*.test.ts` colocated with source. E2E in `e2e/`.
+  - **Naming:** drop the `+` prefix — `+page.svelte` → `page.test.ts`, `+page.server.ts` → `page.server.test.ts`, `+server.ts` → `server.test.ts`. SvelteKit reserves `+` in the routes directory.
+  - **Unit** — always present. Pure logic, stores, utilities.
+  - **Component** — include when the file has UI concerns (rendering, DOM, user interaction). Use judgment — not every file needs this.
+  - **Integration** — include when the file has backend concerns (API calls, load functions, server actions). Use judgment — not every file needs this.
+  - Each block is a top-level `describe`. A route file may have all three; a pure utility likely only has Unit.
 - **Accessibility:** ARIA labels, keyboard navigation, contrast — not optional.
 
 # currentDate

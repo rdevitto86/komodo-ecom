@@ -72,6 +72,11 @@ yarn-error.log*
 .settings/
 *.sublime-project
 *.sublime-workspace
+.windsurfrules
+
+# AI / MCP
+.mcp.json
+.komodo/
 
 # Temporary
 *.tmp

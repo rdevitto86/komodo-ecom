@@ -1,6 +1,5 @@
 FROM oven/bun:slim AS build
 
-COPY komodo-forge-sdk-ts /komodo-forge-sdk-ts
 
 WORKDIR /app
 

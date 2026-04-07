@@ -41,10 +41,8 @@ Agent definitions live in `.claude/agents/`. The orchestrator routes to them by 
 
 ```
 komodo-ecom/
-├── apis/           # Go microservices + SDKs
-│   ├── komodo-*-api/        # Independently deployable Go services
-│   ├── komodo-forge-sdk-go/ # Shared Go SDK (referenced by all Go services)
-│   └── komodo-forge-sdk-ts/ # Shared TypeScript SDK
+├── apis/           # Go microservices
+│   └── komodo-*-api/        # Independently deployable Go services
 ├── infra/          # All infrastructure config
 │   ├── local/               # Local dev (docker-compose, LocalStack, services.jsonc)
 │   └── deploy/              # AWS deployment (CloudFormation, EC2 compose, scripts)
@@ -53,7 +51,7 @@ komodo-ecom/
 └── Justfile        # Local dev task runner
 ```
 
-> **Docker build context:** All Go service `docker-compose.yaml` files use `context: ../..` (repo root) so the SDK can be `COPY`'d alongside the service. Run `docker compose` from inside `apis/<service>/` for standalone use.
+> **Docker build context:** Individual service `docker-compose.yaml` files use `context: ..` (i.e. `apis/`) so paths like `COPY komodo-<service>-api/` resolve correctly. Run `docker compose` from inside `apis/<service>/` for standalone use.
 
 ## Local Dev Orchestration
 
@@ -73,6 +71,24 @@ Individual service composes (`apis/<service>/docker-compose.yaml`) still work st
 
 ---
 
+## TODO Tracking
+
+Three `TODO.md` files serve as the project's living backlog. Check the relevant one before starting any task and flag completed items when work is done.
+
+| File | Scope |
+|------|-------|
+| `apis/TODO.md` | All API services |
+| `ui/TODO.md` | Frontend (`ui/`) |
+| `infra/TODO.md` | Infrastructure (`infra/`) |
+
+**Rules:**
+- Before starting work in any area, read the relevant `TODO.md` and note any items your task touches.
+- When a task completes an item, call it out explicitly so the user can check it off.
+- When creating new work that isn't already listed, suggest adding it to the relevant `TODO.md`.
+- Do not modify `TODO.md` files autonomously — surface the suggestion and let the user decide.
+
+---
+
 ## Context Strategy
 **Do not pre-load monorepo context.** Discover only what's relevant to the current task.
 
@@ -82,7 +98,7 @@ Individual service composes (`apis/<service>/docker-compose.yaml`) still work st
 3. Do not read sibling service directories unless the task explicitly spans services.
 4. Fall back to this file only for monorepo-wide conventions.
 5. Before writing any models, error codes, or adapters, check `apis/<service>/pkg/<version>/` — custom types, error codes (`models/errors.go`), and exported adapters live here. Do not redefine what already exists.
-6. When using forge SDK packages, read the relevant source in `apis/komodo-forge-sdk-go/` — do not guess signatures. Key packages:
+6. When using forge SDK packages, read the source in the `komodo-forge-sdk-go` repo (`github.com/rdevitto86/komodo-forge-sdk-go`) — do not guess signatures. Key packages:
    - `http/server` — `server.Run` (Lambda/HTTP universal entrypoint)
    - `http/middleware` — `middleware.Chain`, auth, rate-limiter, request-id, CORS, etc. (see `http/middleware/exports.go`)
    - `http/errors` — `httpErr.SendError`, error codes (`Global`, `Auth`, `User`, `Payment`, etc.); read `codes.go` for available codes before defining new ones
@@ -97,12 +113,12 @@ Individual service composes (`apis/<service>/docker-compose.yaml`) still work st
 **Working inside the frontend (`ui/`):**
 1. Read `ui/docs/` for architecture and design context.
 2. `ui/CLAUDE.md` is the authoritative context file for that workspace.
-3. When using forge SDK types or API clients, read `apis/komodo-forge-sdk-ts/` for exact shapes — do not guess.
+3. When using forge SDK types or API clients, read the source in the `komodo-forge-sdk-ts` repo (`github.com/rdevitto86/komodo-forge-sdk-ts`) for exact shapes — do not guess.
 
 **Working at the monorepo root:**
 - Use root `README.md` as the service registry.
 - Backend services live under `apis/komodo-*`. Frontend lives under `ui/`.
-- Shared SDKs live under `apis/komodo-forge-sdk-go` and `apis/komodo-forge-sdk-ts`.
+- Shared SDKs live in external repos: `github.com/rdevitto86/komodo-forge-sdk-go` (Go) and `github.com/rdevitto86/komodo-forge-sdk-ts` (TypeScript).
 - Root `docs/` contains monorepo-wide and cross-service documentation (audit logging, ADRs, platform decisions). Check here before writing new platform-level docs.
 
 ---
@@ -127,7 +143,7 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 - **Auth:** OAuth 2.0 / JWT RS256 via `komodo-auth-api`
 - **Databases:** DynamoDB, S3, Redis (planned)
 - **Infra:** Docker + LocalStack locally; EC2 + docker-compose for first production deploy; CloudFormation/ECS Fargate as the scale-up path
-- **SDKs:** `komodo-forge-sdk-go` (AWS clients, middleware, crypto, logging, concurrency), `komodo-forge-sdk-ts` (types, API clients)
+- **SDKs:** `komodo-forge-sdk-go` — `github.com/rdevitto86/komodo-forge-sdk-go` (AWS clients, middleware, crypto, logging, concurrency); `komodo-forge-sdk-ts` — `github.com/rdevitto86/komodo-forge-sdk-ts` (types, API clients)
 
 ## Deployment Strategy
 > Current state: frontend live (static), backend not yet deployed. EC2 is the low-cost bootstrap path; ECS Fargate is the production target.

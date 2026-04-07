@@ -8,10 +8,8 @@ Production-style e-commerce platform. Independently deployable Go microservices,
 
 ```
 komodo-ecom/
-├── apis/                     # Go microservices + SDKs
-│   ├── komodo-*-api/         # Independently deployable Go services
-│   ├── komodo-forge-sdk-go/  # Shared internal Go SDK
-│   └── komodo-forge-sdk-ts/  # Shared internal TypeScript SDK
+├── apis/                     # Go microservices
+│   └── komodo-*-api/         # Independently deployable Go services
 ├── ui/                       # SvelteKit 5 frontend (bun runtime, adapter-static for demo)
 ├── infra/                    # Local AWS emulation (DynamoDB, S3, Secrets Manager) + Redis
 │   ├── deploy/               # AWS deployment (CloudFormation, EC2 compose, deploy scripts)
@@ -57,7 +55,7 @@ cd ui && bun run dev:mock    # mock mode (no backend needed)
 | Errors | RFC 7807 Problem+JSON |
 | Schema | `docs/openapi.yaml` per service |
 | Tracing | OpenTelemetry OTLP (planned) |
-| Secrets | AWS Secrets Manager via `komodo-forge-sdk-go` at startup |
+| Secrets | AWS Secrets Manager via [`komodo-forge-sdk-go`](https://github.com/rdevitto86/komodo-forge-sdk-go) at startup |
 | Networking | All services share `komodo-network` (created by `infra/local/docker-compose.yml`) |
 
 ---
@@ -97,9 +95,9 @@ cd ui && bun run dev:mock    # mock mode (no backend needed)
 
 ## Shared Libraries
 
-**`komodo-forge-sdk-go`** (`apis/komodo-forge-sdk-go`) — Internal Go SDK. AWS clients (DynamoDB, S3, Secrets Manager, Redis, Aurora), HTTP middleware stack, JWT/JWKS crypto, structured logging, concurrency utilities.
+**[`komodo-forge-sdk-go`](https://github.com/rdevitto86/komodo-forge-sdk-go)** — Internal Go SDK. AWS clients (DynamoDB, S3, Secrets Manager, Redis, Aurora), HTTP middleware stack, JWT/JWKS crypto, structured logging, concurrency utilities.
 
-**`komodo-forge-sdk-ts`** (`apis/komodo-forge-sdk-ts`) — Internal TypeScript SDK. Domain types, API client utilities, frontend helpers. Backend modules (logging, telemetry) are stubs.
+**[`komodo-forge-sdk-ts`](https://github.com/rdevitto86/komodo-forge-sdk-ts)** — Internal TypeScript SDK. Domain types, API client utilities, frontend helpers. Backend modules (logging, telemetry) are stubs.
 
 ---
 

@@ -1,6 +1,6 @@
 openapi: "3.1.0"
 info:
-  title: komodo-inventory-api
+  title: komodo-shop-inventory-api
   version: "1.0.0"
   description: |
     Stock tracking and reservation service. Internal-only — all routes except /health

@@ -1,6 +1,6 @@
 openapi: "3.1.0"
 info:
-  title: komodo-returns-api
+  title: komodo-order-returns-api
   version: "1.0.0"
   description: Returns and RMA service. Customer-facing routes require JWT; admin/service routes require internal service JWT.
 servers:

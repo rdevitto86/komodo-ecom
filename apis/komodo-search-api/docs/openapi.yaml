@@ -1,0 +1,146 @@
+openapi: "3.1.0"
+info:
+  title: komodo-search-api
+  version: "0.1.0"
+  description: |
+    Full-text search over the product and service catalog via Typesense.
+    No authentication required — public read-only endpoint.
+
+    **Note:** Typesense integration is not yet wired. Search returns empty results until
+    the index is populated via the event-bus subscriber.
+servers:
+  - url: http://localhost:7042
+    description: Local dev
+
+tags:
+  - name: Health
+  - name: Search
+
+paths:
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      operationId: healthCheck
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+
+  /search:
+    get:
+      tags: [Search]
+      summary: Search the product and service catalog
+      operationId: search
+      security: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query string
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          description: Search index unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+components:
+  schemas:
+    SearchResult:
+      type: object
+      required: [sku, name, type, price, score]
+      description: Single item from the Typesense index. Products and services share this shape — use type to differentiate.
+      properties:
+        sku:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [product, service]
+        price:
+          type: number
+          format: double
+        category:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        image_url:
+          type: string
+          format: uri
+        score:
+          type: number
+          format: double
+          description: Typesense relevance score
+
+    SearchResponse:
+      type: object
+      required: [query, results, total, page, per_page]
+      properties:
+        query:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResult"
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid query parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

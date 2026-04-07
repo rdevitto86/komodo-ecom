@@ -1,0 +1,417 @@
+openapi: "3.1.0"
+info:
+  title: komodo-auth-api
+  version: "0.1.0"
+  description: |
+    OAuth 2.0 authorization server. Issues and validates RS256 JWTs.
+
+    **Two servers:**
+    - Public (7011): client-facing OAuth endpoints + JWKS
+    - Internal (7012): token validation and client registry for service-to-service calls
+
+servers:
+  - url: http://localhost:7011
+    description: Public (local)
+  - url: http://localhost:7012
+    description: Internal (local)
+
+tags:
+  - name: Health
+  - name: OAuth
+  - name: JWKS
+  - name: Internal
+
+paths:
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      operationId: healthCheck
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+
+  /.well-known/jwks.json:
+    get:
+      tags: [JWKS]
+      summary: JSON Web Key Set — public keys for JWT verification
+      operationId: getJWKS
+      security: []
+      responses:
+        "200":
+          description: JWKS document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JWKS"
+
+  /oauth/token:
+    post:
+      tags: [OAuth]
+      summary: Issue an access token
+      description: |
+        Supports `client_credentials` and `refresh_token` grant types.
+        `authorization_code` grant type also accepted when `code` and `redirectUri` are present.
+      operationId: issueToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      responses:
+        "200":
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /oauth/authorize:
+    get:
+      tags: [OAuth]
+      summary: Authorization endpoint (authorization_code flow)
+      operationId: authorize
+      security: []
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [code]
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: scope
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to client with authorization code
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /oauth/introspect:
+    post:
+      tags: [OAuth]
+      summary: Introspect a token (requires client credentials)
+      operationId: introspectToken
+      security:
+        - ClientJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntrospectRequest"
+      responses:
+        "200":
+          description: Introspection result — active:false for expired, revoked, or unknown tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntrospectResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /oauth/revoke:
+    post:
+      tags: [OAuth]
+      summary: Revoke a token (requires client credentials)
+      operationId: revokeToken
+      security:
+        - ClientJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeRequest"
+      responses:
+        "200":
+          description: Token revoked (always 200 per RFC 7009 — no error if token is already invalid)
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Internal ────────────────────────────────────────────────────────────────
+  # Served on port 7012. VPC/IAM is the primary access control layer.
+
+  /internal/token/validate:
+    post:
+      tags: [Internal]
+      summary: Validate and decode a JWT (service-to-service)
+      description: |
+        Used by other services to validate tokens without implementing JWT verification themselves.
+        No client JWT required — VPC access is the control.
+        Requiring auth here would create a circular dependency.
+      operationId: validateToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValidateRequest"
+      responses:
+        "200":
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /internal/clients:
+    get:
+      tags: [Internal]
+      summary: List all registered OAuth clients
+      operationId: listClients
+      security: []
+      responses:
+        "200":
+          description: Client list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RegisteredClient"
+
+  /internal/clients/{id}:
+    get:
+      tags: [Internal]
+      summary: Get a registered client by ID
+      operationId: getClient
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Client details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisteredClient"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    ClientJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Service/client JWT — required for introspect and revoke
+
+  schemas:
+    TokenRequest:
+      type: object
+      required: [clientId, clientSecret, grantType]
+      properties:
+        clientId:
+          type: string
+        clientSecret:
+          type: string
+        grantType:
+          type: string
+          enum: [client_credentials, refresh_token, authorization_code]
+        scope:
+          type: string
+        refreshToken:
+          type: string
+          description: Required for refresh_token grant
+        code:
+          type: string
+          description: Required for authorization_code grant
+        redirectUri:
+          type: string
+          description: Required for authorization_code grant
+
+    TokenResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          description: Seconds until token expires
+        refreshToken:
+          type: string
+        scope:
+          type: string
+
+    IntrospectRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+
+    IntrospectResponse:
+      type: object
+      required: [active]
+      properties:
+        active:
+          type: boolean
+        scope:
+          type: string
+        clientId:
+          type: string
+        tokenType:
+          type: string
+        exp:
+          type: integer
+          format: int64
+        iat:
+          type: integer
+          format: int64
+        sub:
+          type: string
+        aud:
+          type: string
+
+    RevokeRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+        token_type_hint:
+          type: string
+          enum: [access_token, refresh_token]
+
+    JWK:
+      type: object
+      required: [kty, use, kid, alg, n, e]
+      properties:
+        kty:
+          type: string
+          example: RSA
+        use:
+          type: string
+          example: sig
+        kid:
+          type: string
+        alg:
+          type: string
+          example: RS256
+        n:
+          type: string
+          description: RSA modulus (base64url)
+        e:
+          type: string
+          description: RSA exponent (base64url)
+
+    JWKS:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: "#/components/schemas/JWK"
+
+    RegisteredClient:
+      type: object
+      description: Public view of an OAuth client — secret is never included
+      required: [client_id, name, allowed_scopes]
+      properties:
+        client_id:
+          type: string
+        name:
+          type: string
+        allowed_scopes:
+          type: array
+          items:
+            type: string
+
+    ValidateRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+
+    ValidateResponse:
+      type: object
+      required: [valid]
+      properties:
+        valid:
+          type: boolean
+        sub:
+          type: string
+          description: Token subject (user ID or service ID)
+        scopes:
+          type: array
+          items:
+            type: string
+        error:
+          type: string
+          description: Present when valid is false
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

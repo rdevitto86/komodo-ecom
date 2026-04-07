@@ -1,0 +1,724 @@
+openapi: "3.1.0"
+info:
+  title: komodo-shop-items-api
+  version: "0.1.0"
+  description: |
+    Product and service catalog. Serves item data from S3.
+
+    - `GET /item/inventory` and `GET /item/{sku}` are public (no auth required)
+    - `POST /item/suggestion` requires a user JWT
+servers:
+  - url: http://localhost:7041
+    description: Local dev
+
+tags:
+  - name: Health
+  - name: Catalog
+  - name: Inventory
+
+paths:
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      operationId: healthCheck
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+
+  /item/inventory:
+    get:
+      tags: [Inventory]
+      summary: Get inventory summary for all SKUs
+      operationId: getInventory
+      security: []
+      responses:
+        "200":
+          description: Inventory list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryResponse"
+
+  /item/{sku}:
+    get:
+      tags: [Catalog]
+      summary: Get a product or service by SKU
+      operationId: getItemBySKU
+      security: []
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product or service details
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Product"
+                  - $ref: "#/components/schemas/Service"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /item/suggestion:
+    post:
+      tags: [Catalog]
+      summary: Get personalized product suggestions
+      operationId: getSuggestions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuggestionRequest"
+      responses:
+        "200":
+          description: Suggested products
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuggestionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    StockCode:
+      type: string
+      description: |
+        Inventory availability code:
+        - IS: In Stock
+        - OS: Out of Stock
+        - LS: Limited Supply
+        - PO: Pre-Order
+        - SO: Sold Out
+        - BO: Backorder
+        - DC: Discontinued
+        - TU: Temporarily Unavailable
+      enum: [IS, OS, LS, PO, SO, BO, DC, TU]
+
+    Dimensions:
+      type: object
+      properties:
+        length:
+          type: number
+          format: double
+        width:
+          type: number
+          format: double
+        height:
+          type: number
+          format: double
+        unit:
+          type: string
+          enum: [in, cm]
+
+    Spin360:
+      type: object
+      required: [frames, frameCount]
+      properties:
+        frames:
+          type: array
+          items:
+            type: string
+            format: uri
+        frameCount:
+          type: integer
+        startFrame:
+          type: integer
+
+    Model3D:
+      type: object
+      required: [modelUrl, format]
+      properties:
+        modelUrl:
+          type: string
+          format: uri
+        format:
+          type: string
+        textureUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+        thumbnailUrl:
+          type: string
+          format: uri
+
+    ProductImage:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+        alt:
+          type: string
+        isPrimary:
+          type: boolean
+        variantIds:
+          type: array
+          items:
+            type: string
+        type:
+          type: string
+          enum: [image, video, spin360, model3d]
+        spin360:
+          $ref: "#/components/schemas/Spin360"
+        model3d:
+          $ref: "#/components/schemas/Model3D"
+
+    CustomizationValue:
+      type: object
+      required: [id, label, value]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        value:
+          type: string
+        priceModifier:
+          type: number
+          format: double
+        hexColor:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+        stockCode:
+          $ref: "#/components/schemas/StockCode"
+        stockQty:
+          type: integer
+        isDefault:
+          type: boolean
+        disabled:
+          type: boolean
+        disabledReason:
+          type: string
+
+    CustomizationOption:
+      type: object
+      required: [id, name, type, required, displayOrder, values]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        required:
+          type: boolean
+        displayOrder:
+          type: integer
+        values:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomizationValue"
+
+    Compatibility:
+      type: object
+      properties:
+        optionIds:
+          type: array
+          items:
+            type: string
+        variantIds:
+          type: array
+          items:
+            type: string
+
+    AddOn:
+      type: object
+      required: [id, name, price]
+      properties:
+        id:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        manufacturer:
+          type: string
+        price:
+          type: number
+          format: double
+        compareAtPrice:
+          type: number
+          format: double
+        imageUrl:
+          type: string
+          format: uri
+        stockCode:
+          $ref: "#/components/schemas/StockCode"
+        stockQty:
+          type: integer
+        weight:
+          type: number
+          format: double
+        requiresShipping:
+          type: boolean
+        maxQuantity:
+          type: integer
+        isRecommended:
+          type: boolean
+        compatibleWith:
+          $ref: "#/components/schemas/Compatibility"
+
+    Variant:
+      type: object
+      required: [id, name, price]
+      properties:
+        id:
+          type: string
+        sku:
+          type: string
+        upc:
+          type: string
+        gtin:
+          type: string
+        ean:
+          type: string
+        model:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: double
+        compareAtPrice:
+          type: number
+          format: double
+        cost:
+          type: number
+          format: double
+        taxCode:
+          type: string
+        stockQty:
+          type: integer
+        stockCode:
+          $ref: "#/components/schemas/StockCode"
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductImage"
+        optionCombination:
+          type: object
+          additionalProperties:
+            type: string
+        weight:
+          type: number
+          format: double
+        weightUnit:
+          type: string
+          enum: [lb, kg, oz, g]
+        dimensions:
+          $ref: "#/components/schemas/Dimensions"
+        requiresShipping:
+          type: boolean
+        shippingClass:
+          type: string
+        isDefault:
+          type: boolean
+
+    ProductMeta:
+      type: object
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+        categories:
+          type: array
+          items:
+            type: string
+        isPopular:
+          type: boolean
+        isFeatured:
+          type: boolean
+        isNew:
+          type: boolean
+        extra:
+          type: object
+          additionalProperties: true
+
+    SEO:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+
+    Product:
+      type: object
+      required: [id, slug, name, description, status, trackInventory, variants]
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        brand:
+          type: string
+        manufacturer:
+          type: string
+        status:
+          type: string
+          enum: [active, draft, archived]
+        currency:
+          type: string
+        price:
+          type: number
+          format: double
+        compareAtPrice:
+          type: number
+          format: double
+        cost:
+          type: number
+          format: double
+        taxCode:
+          type: string
+        trackInventory:
+          type: boolean
+        minOrderQuantity:
+          type: integer
+        maxOrderQuantity:
+          type: integer
+        customizationOptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomizationOption"
+        addOns:
+          type: array
+          items:
+            $ref: "#/components/schemas/AddOn"
+        relatedProductIds:
+          type: array
+          items:
+            type: string
+        variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/Variant"
+        specs:
+          type: object
+          additionalProperties: true
+        meta:
+          $ref: "#/components/schemas/ProductMeta"
+        seo:
+          $ref: "#/components/schemas/SEO"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TimeSlot:
+      type: object
+      required: [start, end]
+      properties:
+        start:
+          type: string
+          description: HH:MM (24h)
+        end:
+          type: string
+          description: HH:MM (24h)
+
+    ServiceAreaRadius:
+      type: object
+      required: [miles, centerZip]
+      properties:
+        miles:
+          type: number
+          format: double
+        centerZip:
+          type: string
+
+    ServiceAvailability:
+      type: object
+      properties:
+        daysOfWeek:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+        timeSlots:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeSlot"
+        blackoutDates:
+          type: array
+          items:
+            type: string
+            format: date
+        leadTimeDays:
+          type: integer
+        maxBookingsPerDay:
+          type: integer
+        serviceAreaZipCodes:
+          type: array
+          items:
+            type: string
+        serviceAreaRadius:
+          $ref: "#/components/schemas/ServiceAreaRadius"
+
+    ServiceDuration:
+      type: object
+      required: [estimated, unit]
+      properties:
+        estimated:
+          type: integer
+        unit:
+          type: string
+          enum: [minutes, hours, days]
+        min:
+          type: integer
+        max:
+          type: integer
+
+    ServiceImage:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+        alt:
+          type: string
+        isPrimary:
+          type: boolean
+        type:
+          type: string
+
+    ServiceOption:
+      type: object
+      required: [id, name, type, priceModifier]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        priceModifier:
+          type: number
+          format: double
+        durationModifier:
+          type: number
+          format: double
+        maxBookings:
+          type: integer
+        isDefault:
+          type: boolean
+        requiresProducts:
+          type: array
+          items:
+            type: string
+        compatibleWith:
+          type: array
+          items:
+            type: string
+
+    Service:
+      type: object
+      required: [id, slug, name, description, category, status, price, locationTypes]
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        status:
+          type: string
+          enum: [active, draft, archived]
+        price:
+          type: number
+          format: double
+        compareAtPrice:
+          type: number
+          format: double
+        cost:
+          type: number
+          format: double
+        currency:
+          type: string
+        taxCode:
+          type: string
+        duration:
+          $ref: "#/components/schemas/ServiceDuration"
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceImage"
+        serviceOptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceOption"
+        locationTypes:
+          type: array
+          items:
+            type: string
+        availability:
+          $ref: "#/components/schemas/ServiceAvailability"
+        requirements:
+          type: array
+          items:
+            type: string
+        includedItems:
+          type: array
+          items:
+            type: string
+        relatedServiceIds:
+          type: array
+          items:
+            type: string
+        relatedProductIds:
+          type: array
+          items:
+            type: string
+        meta:
+          $ref: "#/components/schemas/ProductMeta"
+        seo:
+          $ref: "#/components/schemas/SEO"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    InventoryItem:
+      type: object
+      required: [sku, name, stockQty, stockCode, price]
+      properties:
+        sku:
+          type: string
+        name:
+          type: string
+        stockQty:
+          type: integer
+        stockCode:
+          $ref: "#/components/schemas/StockCode"
+        price:
+          type: number
+          format: double
+        updatedAt:
+          type: string
+          format: date-time
+
+    InventoryResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InventoryItem"
+        total:
+          type: integer
+
+    SuggestionRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+        skus:
+          type: array
+          items:
+            type: string
+          description: SKUs of items currently in cart or recently viewed
+        categories:
+          type: array
+          items:
+            type: string
+        limit:
+          type: integer
+          default: 10
+          maximum: 50
+
+    SuggestionResponse:
+      type: object
+      required: [suggestions, total]
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        total:
+          type: integer
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Item not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

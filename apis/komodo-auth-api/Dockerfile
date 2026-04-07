@@ -4,7 +4,6 @@ ARG DISTROLESS_TAG=debug
 FROM golang:1.26 AS build
 ARG BUILD_TARGET
 
-COPY komodo-forge-sdk-go /komodo-forge-sdk-go
 
 WORKDIR /app
 

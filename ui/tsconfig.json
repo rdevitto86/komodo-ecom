@@ -21,6 +21,10 @@
     "src/**/*.ts",
     "src/**/*.d.ts",
     "src/**/*.svelte",
+    "e2e/**/*.ts",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "vitest-setup.ts",
     ".svelte-kit/ambient.d.ts",
     ".svelte-kit/types/**/*.d.ts"
   ]

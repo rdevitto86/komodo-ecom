@@ -99,4 +99,4 @@ curl http://localhost:7003/api/health
 | Domain | Frontend & Infrastructure |
 | Storage | AWS S3, SQLite (`better-sqlite3`) |
 | CDN | AWS CloudFront |
-| SDK | `@komodo-forge-sdk/typescript` (`link:../komodo-forge-sdk-ts`) |
+| SDK | [`@komodo-forge-sdk/typescript`](https://github.com/rdevitto86/komodo-forge-sdk-ts) |

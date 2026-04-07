@@ -1,0 +1,130 @@
+openapi: "3.1.0"
+info:
+  title: komodo-ssr-engine-svelte
+  version: "0.1.0"
+  description: |
+    Backend SSR engine. Pre-renders Svelte component trees for performance-critical and SEO pages,
+    caches them, and delivers HTML fragments to the ui shell for injection.
+
+    **Status:** Not yet implemented. Spec documents the planned contract.
+servers:
+  - url: http://localhost:7003
+    description: Local dev
+
+tags:
+  - name: Health
+  - name: Render
+
+paths:
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      operationId: healthCheck
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+
+  /render:
+    post:
+      tags: [Render]
+      summary: Render a Svelte component tree to an HTML fragment
+      operationId: renderComponent
+      security:
+        - ServiceJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenderRequest"
+      responses:
+        "200":
+          description: Rendered HTML fragment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RenderResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Component not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+components:
+  securitySchemes:
+    ServiceJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Internal service JWT from komodo-auth-api
+
+  schemas:
+    RenderRequest:
+      type: object
+      required: [component]
+      properties:
+        component:
+          type: string
+          description: Component identifier (e.g. "product-detail", "category-listing")
+        props:
+          type: object
+          description: Props passed to the component at render time
+          additionalProperties: true
+        cache_ttl:
+          type: integer
+          description: Override cache TTL in seconds. 0 = no cache.
+
+    RenderResponse:
+      type: object
+      required: [html, component, cached]
+      properties:
+        html:
+          type: string
+          description: Pre-rendered HTML fragment
+        component:
+          type: string
+        cached:
+          type: boolean
+          description: Whether this response was served from cache
+        rendered_at:
+          type: string
+          format: date-time
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing or invalid service JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

@@ -20,7 +20,7 @@
 
 ```
 +page.server.ts (load fn)
-  └─► forge SDK client (from komodo-forge-sdk-ts)
+  └─► forge SDK client (from @komodo-forge-sdk/typescript)
         └─► backend API (auth-api / user-api / shop-items-api / etc.)
               └─► DynamoDB / S3
 

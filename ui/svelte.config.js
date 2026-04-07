@@ -24,7 +24,7 @@ const config = {
       '$static': 'static',
     },
     csrf: {
-      checkOrigin: true,
+      trustedOrigins: [],
     },
   },
   compilerOptions: {

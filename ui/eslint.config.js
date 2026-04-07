@@ -97,6 +97,6 @@ export default defineConfig([
 
   // Ignore
   {
-    ignores: ['eslint.config.js', 'node_modules/', 'dist/', '.vscode/', '.idea/', 'build/', 'scripts/', '.svelte-kit/'],
+    ignores: ['eslint.config.js', 'node_modules/', 'dist/', '.vscode/', '.idea/', 'build/', 'scripts/', '.svelte-kit/', 'src/lib/types/generated/'],
   },
 ]);

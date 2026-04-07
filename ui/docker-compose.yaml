@@ -1,0 +1,42 @@
+name: komodo-ui
+
+services:
+  ui:
+    image: komodo-ui:${VERSION:-dev}
+    build:
+      context: .
+      # dev  → hot reload via bun dev --host (default)
+      # prod → built adapter-node bundle via bun run build/index.js
+      target: ${BUILD_TARGET:-dev}
+    restart: ${RESTART_POLICY:-no}
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_LIMIT:-512M}
+    env_file:
+      - ../infra/local/env.shared
+    environment:
+      APP_NAME: komodo-ui
+      PORT: "7001"
+      NODE_ENV: ${NODE_ENV:-development}
+      VERSION: ${VERSION:-dev}
+    ports:
+      - "7001:7001"
+    # Dev only — mounts source for HMR. Remove when BUILD_TARGET=prod.
+    volumes:
+      - .:/app
+      - /app/node_modules
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:7001').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - komodo-network
+
+networks:
+  komodo-network:
+    external: true

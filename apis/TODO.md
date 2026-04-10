@@ -34,6 +34,9 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 
 - [ ] **[M]** Replace stub recommendation logic in `GET /suggestions` with real logic (rule-based, ML, or simple bestsellers query)
 - [ ] **[M]** Evaluate recommendation automation — assess whether user browsing/purchase history can drive `GET /suggestions` (rule-based first, ML later)
+- [ ] **[M]** Add `service_type` field to `ShopItem` model (`product | service | repair`) — repair items carry additional fields: `accepted_device_types`, `estimated_turnaround_days`, `warranty_on_repair`; update S3 schema and `openapi.yaml`
+- [ ] **[M]** Add `GET /services/repair` route — filter shop items by `service_type=repair`; return paginated repair service listings
+- [ ] **[M]** Add `GET /services/repair/{id}` route — single repair service detail (accepted devices, pricing, turnaround, warranty)
 - [ ] **[L]** Add unit tests for S3 fetch and item parsing
 
 ---
@@ -90,6 +93,12 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 - [ ] **[M]** Implement `GET /payments/card-identify` — BIN lookup to identify card network (Visa, Mastercard, Amex, etc.) for UI display before charge
 - [ ] **[M]** Implement subscription billing flow — recurring charge schedule, webhook handling for renewal/failure/cancellation events
 - [ ] **[L]** Add integration tests with Stripe test mode keys
+- [ ] **[M]** Design payment plans data model — installment schedule (plan type, interval, amount per interval, total, remaining balance, status) stored in DynamoDB alongside order/charge records; define `komodo-payment-plans` table schema in `docs/data-model.md`
+- [ ] **[M]** Implement `POST /payments/plans` — create a payment plan from a checkout token or order ID; charge first installment immediately, queue subsequent installments with due dates
+- [ ] **[M]** Implement `GET /me/payments/plans` + `GET /me/payments/plans/{planId}` — list and detail active plans for the authenticated user
+- [ ] **[M]** Implement `POST /payments/plans/{planId}/cancel` — cancel plan and halt future charges; trigger partial refund if policy allows
+- [ ] **[M]** Implement installment execution — scheduled Lambda or cron that charges each due installment; configurable retry schedule for failed charges (e.g. 1 day, 3 days, 7 days before cancellation)
+- [ ] **[M]** Publish `payment.plan.created`, `payment.plan.installment.charged`, `payment.plan.failed`, `payment.plan.completed` events to event-bus-api
 
 ---
 
@@ -154,7 +163,23 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 - [ ] **[M]** Add ownership/authorization check — reject cross-customer booking reads/mutations
 - [ ] **[M]** Add `POST /internal/slots/sync` route for slot inventory management
 - [ ] **[M]** Decide and implement checkout hold flow (Option A: hold at reservation time vs Option B: hold at order confirm)
+- [ ] **[M]** Extend booking model for repair intake — add `repair` booking type with fields: `device_type`, `serial_number`, `reported_issue`, `inbound_shipment_id`; wire to inbound shipping flow once shipping-api exists
+- [ ] **[M]** Implement repair status state machine: `intake_pending → received → diagnosing → repairing → quality_check → ready → shipped_back`; emit status change events to event-bus-api on each transition
 - [ ] **[L]** Add integration tests for booking lifecycle
+
+---
+
+## komodo-shipping-api (NEW)
+> Status: Not yet created. Handles both inbound (customer → warehouse: returns, repair intake) and outbound (warehouse → customer: order fulfillment, repaired items) shipment label generation and tracking.
+
+- [ ] **[M]** Scaffold service: bootstrap (logger, secrets, DynamoDB), middleware stack, ServeMux routes (port TBD — reserve in port allocation table)
+- [ ] **[M]** Select and integrate a carrier aggregator (EasyPost, ShipStation, or EasyPost-compatible) — abstract behind a provider interface so carriers are swappable
+- [ ] **[M]** Implement `POST /shipping/labels/outbound` — generate outbound label for order fulfillment; called by order-api when order transitions to `shipped`; return carrier, tracking number, and label URL
+- [ ] **[M]** Implement `POST /shipping/labels/inbound` — generate prepaid inbound return/repair label; called by order-returns-api and order-reservations-api; customer receives label URL to print or QR scan
+- [ ] **[M]** Implement `GET /shipping/{shipmentId}` — real-time shipment status; poll carrier API or return latest cached status
+- [ ] **[M]** Add carrier webhook handler — receive status events from carrier (`delivered`, `out_for_delivery`, `exception`, `in_transit`); update shipment record and publish `shipment.status_updated` event to event-bus-api
+- [ ] **[M]** Publish `shipment.label.created`, `shipment.delivered`, `shipment.received.inbound` events — `shipment.received.inbound` triggers inspection/repair workflow in reservations-api; `shipment.delivered` triggers loyalty points and fulfillment confirmation in order-api
+- [ ] **[L]** Add integration tests for label generation, status polling, and webhook handling
 
 ---
 
@@ -241,6 +266,10 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 - [ ] **[L]** Add `docs/data-model.md` to every API that uses DynamoDB (currently missing for most)
 - [ ] **[L]** Standardize `openapi.yaml` across all APIs (several stubs are missing or outdated)
 - [ ] **[L]** Write unit + integration tests for all services (`go test ./...` must pass; at minimum happy path + error cases per handler)
+- [ ] **[M]** Wire inbound shipping to returns flow — `order-returns-api` calls `shipping-api` `POST /shipping/labels/inbound` on RMA approval and returns the label URL to the customer
+- [ ] **[M]** Wire inbound shipping to repair intake — `order-reservations-api` calls `shipping-api` `POST /shipping/labels/inbound` on repair booking confirmation; store `inbound_shipment_id` on the booking record
+- [ ] **[M]** Wire outbound shipping to order fulfillment — `order-api` calls `shipping-api` `POST /shipping/labels/outbound` when order transitions to `shipped`; store tracking number and carrier on the order record
+- [ ] **[M]** Add default version exports to all Go service `pkg/` packages — each `pkg/` root should re-export from the current stable versioned subpackage (e.g. `pkg/v1`) so consumers can import a single unversioned canonical path; older/newer versions remain importable via their versioned subpath
 
 ## SDK Extractions (komodo-forge-sdk-go)
 

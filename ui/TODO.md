@@ -32,6 +32,8 @@ Sections are ordered by dependency — auth must come before cart, cart before c
 - [ ] **[H]** Implement `QuantitySelector.svelte` — increment/decrement with min=1, max=stock
 - [ ] **[H]** Implement `AddToCart.svelte` — calls cart BFF and updates `CartState`; handles out-of-stock state
 - [ ] **[M]** Build `/shop/service/[id]` page — same pattern as product; wire `GET /api/shop/service/[id]` to `komodo-shop-items-api`
+- [ ] **[M]** Build `/shop/service/repair/[id]` page — repair service detail: accepted device types, turnaround estimate, pricing, warranty on repair, and "Book Repair" CTA
+- [ ] **[M]** Build repair booking flow — multi-step form: (1) device info + serial number, (2) issue description, (3) inbound shipping label generation, (4) confirmation; wire to `komodo-order-reservations-api`
 - [ ] **[M]** Fix `Header.svelte` nav links — currently point to `/products` and `/services` (routes that don't exist)
 - [ ] **[M]** Fix cart badge in `Header.svelte` — hardcoded to "0"; bind to `CartState.itemCount`
 - [ ] **[M]** Display certification badges on product/service detail pages — render from `ShopItem` data
@@ -78,6 +80,8 @@ Sections are ordered by dependency — auth must come before cart, cart before c
 - [ ] **[M]** Pre-fill payment from user's saved methods (`komodo-user-api` `GET /me/payments`)
 - [ ] **[M]** Wire `POST /api/payments/intent` BFF route — create payment intent via `komodo-payments-api`
 - [ ] **[M]** Implement `PaymentProcessors.svelte` — credit card form (Stripe Elements or equivalent)
+- [ ] **[M]** Add payment plan option to checkout — display available installment plans at payment step; call `POST /api/payments/plans` via BFF after order is placed if user selects a plan
+- [ ] **[M]** Build `/profile/payments/plans` page — list active payment plans with installment schedule, next due date, remaining balance, and status badge
 
 ---
 
@@ -218,3 +222,4 @@ Sections are ordered by dependency — auth must come before cart, cart before c
 ## SDK Extractions (komodo-forge-sdk-ts)
 
 - [ ] **[M]** Extract `APIClient` base class into SDK — `src/lib/server/common/client.ts` is a generic HTTP client with RFC 7807 `ProblemDetail` error handling. Currently only used by the UI but needed by any TypeScript service (SSR engine, future BFF workers). Move to `komodo-forge-sdk-ts` so it's available without copying.
+- [ ] **[M]** Add versioned barrel exports to `komodo-forge-sdk-ts` dist — `dist/index.ts` re-exports from the current stable version (e.g. `v1`) as the default import path; older/newer versions remain importable via `dist/v1`, `dist/v2`, etc.; forces a clear default while preserving backward and forward compatibility

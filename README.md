@@ -53,7 +53,7 @@ cd ui && bun run dev:mock    # mock mode (no backend needed)
 | Auth | JWT (RS256) via `komodo-auth-api`. Service-to-service via client credentials. |
 | Logging | `slog` structured JSON. `tint` locally, JSON in staging/prod. |
 | Errors | RFC 7807 Problem+JSON |
-| Schema | `docs/openapi.yaml` per service |
+| Schema | `openapi.yaml` at each service root |
 | Tracing | OpenTelemetry OTLP (planned) |
 | Secrets | AWS Secrets Manager via [`komodo-forge-sdk-go`](https://github.com/rdevitto86/komodo-forge-sdk-go) at startup |
 | Networking | All services share `komodo-network` (created by `infra/local/docker-compose.yml`) |

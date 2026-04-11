@@ -94,7 +94,7 @@ Three `TODO.md` files serve as the project's living backlog. Check the relevant 
 
 **Working inside a Go service (`apis/komodo-*`):**
 1. Read `apis/<service>/docs/README.md` first — authoritative reference for routes, env vars, port, commands.
-2. Pull other `docs/` files only if directly relevant (e.g. `data-model.md` for DynamoDB work, `openapi.yaml` for contract questions).
+2. Pull `openapi.yaml` (service root) for contract questions, or other `docs/` files only if directly relevant (e.g. `data-model.md` for DynamoDB work).
 3. Do not read sibling service directories unless the task explicitly spans services.
 4. Fall back to this file only for monorepo-wide conventions.
 5. Before writing any models, error codes, or adapters, check `apis/<service>/pkg/<version>/` — custom types, error codes (`models/errors.go`), and exported adapters live here. Do not redefine what already exists.
@@ -123,16 +123,18 @@ Three `TODO.md` files serve as the project's living backlog. Check the relevant 
 
 ---
 
-## Service `/docs` Standard
+## Service File Standard
 Every service should maintain this structure. JUNIOR mode uses it as its primary context source.
 
-| File | Purpose | JUNIOR edits? |
-|------|---------|---------------|
-| `README.md` | Routes, port, env vars, run commands | Yes |
-| `openapi.yaml` | API contract spec | Yes (post-struct) |
-| `architecture.md` | Service topology, dependencies, data flow | No |
-| `design-decisions.md` | Key decisions with rationale | No |
-| `data-model.md` | DynamoDB table design, GSIs, access patterns, cost notes | No |
+| File | Location | Purpose | JUNIOR edits? |
+|------|----------|---------|---------------|
+| `openapi.yaml` | service root | API contract spec — machine-readable, consumed by codegen | Yes (post-struct) |
+| `README.md` | `docs/` | Routes, port, env vars, run commands | Yes |
+| `architecture.md` | `docs/` | Service topology, dependencies, data flow | No |
+| `design-decisions.md` | `docs/` | Key decisions with rationale | No |
+| `data-model.md` | `docs/` | DynamoDB table design, GSIs, access patterns, cost notes | No |
+
+`openapi.yaml` lives at the service root (not in `docs/`) so codegen tools can reference it without path gymnastics: `../komodo-auth-api/openapi.yaml`.
 
 ---
 

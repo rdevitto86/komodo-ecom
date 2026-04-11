@@ -11,4 +11,4 @@ Feature flag management and evaluation for the Komodo platform.
 | Router | `net/http` ServeMux |
 | SDK | `komodo-forge-sdk-go` |
 
-**Stub** — `go.mod`, `main.go`, and `openapi.yaml` exist (empty). When implemented, add `docs/README.md` and `docs/openapi.yaml`.
+**Stub** — `go.mod`, `main.go`, and `openapi.yaml` exist (empty). When implemented, add `docs/README.md` and `openapi.yaml`.

@@ -11,4 +11,4 @@ Transactional email, SMS, and in-app notification delivery.
 | Router | `net/http` ServeMux |
 | SDK | `komodo-forge-sdk-go` |
 
-**Scaffolded** — directory structure exists, implementation not started. When implemented, add `docs/README.md`, `docs/openapi.yaml`.
+**Scaffolded** — directory structure exists, implementation not started. When implemented, add `docs/README.md`, `openapi.yaml`.

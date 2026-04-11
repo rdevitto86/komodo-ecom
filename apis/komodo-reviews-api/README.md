@@ -11,4 +11,4 @@ Product and service reviews, ratings, and moderation.
 | Router | `net/http` ServeMux |
 | SDK | `komodo-forge-sdk-go` |
 
-**Scaffolded** — directory structure exists, implementation not started. When implemented, add `docs/README.md`, `docs/openapi.yaml`, and `docs/data-model.md`.
+**Scaffolded** — directory structure exists, implementation not started. When implemented, add `docs/README.md`, `openapi.yaml`, and `docs/data-model.md`.

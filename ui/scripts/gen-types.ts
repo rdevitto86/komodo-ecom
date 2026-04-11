@@ -35,15 +35,15 @@ const generatedDir = resolve(__dirname, "../src/lib/types/generated");
 const typesDir = resolve(__dirname, "../src/lib/types");
 
 const services: { name: string; spec: string }[] = [
-  { name: "address",        spec: "apis/komodo-address-api/docs/openapi.yaml" },
-  { name: "auth",           spec: "apis/komodo-auth-api/docs/openapi.yaml" },
-  { name: "cart",           spec: "apis/komodo-cart-api/docs/openapi.yaml" },
-  { name: "event-bus",      spec: "apis/komodo-event-bus-api/docs/openapi.yaml" },
-  { name: "order-returns",  spec: "apis/komodo-order-returns-api/docs/openapi.yaml" },
-  { name: "search",         spec: "apis/komodo-search-api/docs/openapi.yaml" },
-  { name: "shop-inventory", spec: "apis/komodo-shop-inventory-api/docs/openapi.yaml" },
-  { name: "shop-items",     spec: "apis/komodo-shop-items-api/docs/openapi.yaml" },
-  { name: "user",           spec: "apis/komodo-user-api/docs/openapi.yaml" },
+  { name: "address",        spec: "apis/komodo-address-api/openapi.yaml" },
+  { name: "auth",           spec: "apis/komodo-auth-api/openapi.yaml" },
+  { name: "cart",           spec: "apis/komodo-cart-api/openapi.yaml" },
+  { name: "event-bus",      spec: "apis/komodo-event-bus-api/openapi.yaml" },
+  { name: "order-returns",  spec: "apis/komodo-order-returns-api/openapi.yaml" },
+  { name: "search",         spec: "apis/komodo-search-api/openapi.yaml" },
+  { name: "shop-inventory", spec: "apis/komodo-shop-inventory-api/openapi.yaml" },
+  { name: "shop-items",     spec: "apis/komodo-shop-items-api/openapi.yaml" },
+  { name: "user",           spec: "apis/komodo-user-api/openapi.yaml" },
 ];
 
 mkdirSync(generatedDir, { recursive: true });

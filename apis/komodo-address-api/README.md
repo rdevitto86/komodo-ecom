@@ -85,4 +85,4 @@ curl -X POST http://localhost:7031/geocode \
 | Framework | Gin v1.11.0 (⚠️ non-standard — migrate to net/http) |
 | Port | 7031 |
 | Domain | Address & Geo |
-| Docs | `docs/openapi.yaml` |
+| Docs | `openapi.yaml` |

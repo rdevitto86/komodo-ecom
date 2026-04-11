@@ -137,4 +137,4 @@ curl -X POST http://localhost:7041/item/suggestion \
 | Domain | Commerce & Catalog |
 | Data store | AWS S3 |
 | SDK | `komodo-forge-sdk-go` |
-| Docs | `docs/openapi.yaml` |
+| Docs | `openapi.yaml` |

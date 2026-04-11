@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"komodo-support-api/pkg/v1/models"
+	"komodo-support-api/internal/models"
 )
 
 // ChatHistoryTTL is the maximum retention period for all chat sessions (anonymous and authenticated).

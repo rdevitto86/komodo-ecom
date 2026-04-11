@@ -3,7 +3,7 @@ package repo
 import (
 	"encoding/json"
 	"fmt"
-	"komodo-cart-api/pkg/v1/models"
+	"komodo-cart-api/internal/models"
 
 	"github.com/rdevitto86/komodo-forge-sdk-go/aws/elasticache"
 )

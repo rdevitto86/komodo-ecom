@@ -50,17 +50,25 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 ---
 
 ## komodo-shop-inventory-api
-> Status: Complete stub — `main.go` is a single TODO comment. Required for cart checkout holds.
+> **ABANDONED** — V1 is Rust. See `komodo-shop-inventory-api-rust`.
 
-- [ ] **[H]** Scaffold service: bootstrap (logger, secrets, DynamoDB), middleware stack, ServeMux routes
-- [ ] **[H]** Implement `POST /stock/{sku}/reserve` — create hold record in DynamoDB with TTL (`HOLD_TTL_SEC`)
-- [ ] **[H]** Implement `DELETE /stock/{sku}/holds/{holdId}` — release a hold
-- [ ] **[H]** Implement `POST /stock/{sku}/decrement` — confirm hold → permanent stock decrement (called by order-api)
-- [ ] **[H]** Implement `GET /stock/{sku}` — return current available quantity
-- [ ] **[H]** Implement TTL-based auto-release: DynamoDB TTL attribute on hold records so holds expire without a cron
-- [ ] **[M]** Implement `POST /stock/bulk` — bulk availability check for cart validation
-- [ ] **[M]** Add internal route `GET /internal/stock/{sku}/holds` for ops/debug inspection
-- [ ] **[L]** Add integration tests for hold/release/decrement lifecycle
+~~Go implementation items removed — all work happens in the Rust service.~~
+
+---
+
+## komodo-shop-inventory-api-rust
+> Status: Stub complete — all layers scaffolded (Axum, models, repo trait, handlers). DynamoDB impl is `todo!()`.
+
+- [ ] **[H]** Implement `DynamoInventoryRepo::reserve` — conditional write (`available_qty >= requested`), write HOLD# record with TTL
+- [ ] **[H]** Implement `DynamoInventoryRepo::get_stock` + `batch_stock` — GetItem / BatchGetItem for SKU#/STOCK records
+- [ ] **[H]** Implement `DynamoInventoryRepo::release_hold` — DeleteItem HOLD# record, restore `available_qty`
+- [ ] **[H]** Implement `DynamoInventoryRepo::confirm` — DeleteItem HOLD# record, decrement `reserved_qty`, increment `committed_qty`
+- [ ] **[H]** Implement `DynamoInventoryRepo::restock` — UpdateItem `available_qty += qty`
+- [ ] **[H]** Wire Secrets Manager bootstrap — populate `Config` secret fields at startup
+- [ ] **[H]** Implement JWT RS256 validation in `middleware/auth.rs` — `DecodingKey::from_rsa_pem` + `jsonwebtoken::decode`
+- [ ] **[M]** DynamoDB Streams handler (separate Lambda) — listen for TTL expiry events, restore `available_qty` on hold expiry
+- [ ] **[M]** Wire `communications_api_url` to fire restock threshold alert when `available_qty` drops below `restock_threshold`
+- [ ] **[L]** Implement `common::spawn_app()` in tests + enable integration tests
 
 ---
 
@@ -81,24 +89,29 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 ---
 
 ## komodo-payments-api
-> Status: Complete stub — `cmd/public/main.go` is an empty package declaration. Required for order checkout.
+> **ABANDONED** — V1 is Rust. See `komodo-payments-api-rust`.
 
-- [ ] **[H]** Scaffold service: bootstrap (logger, secrets, DynamoDB), middleware stacks, dual-server ServeMux
-- [ ] **[H]** Implement `POST /payments/charge` — charge a saved payment method; integrate with Stripe (or stub with configurable test mode)
-- [ ] **[H]** Implement `POST /payments/refund` — refund by order/charge ID; called by order-api on cancellation
-- [ ] **[H]** Implement internal `GET /internal/payments/{orderId}` — payment status lookup for order-api and returns-api
-- [ ] **[M]** Implement `POST /payments/methods` + `DELETE /payments/methods/{id}` for tokenized card storage (delegates to Stripe; stores token ref in DynamoDB)
-- [ ] **[M]** Add webhook handler for async Stripe events (`payment_intent.succeeded`, `charge.refunded`, etc.)
+~~Go implementation items removed — all work happens in the Rust service.~~
+
+---
+
+## komodo-payments-api-rust
+> Status: Stub complete — all layers scaffolded (Axum, models, repo trait, Stripe provider, handlers). DynamoDB impl and Stripe calls are `todo!()`.
+
+- [ ] **[H]** Implement `DynamoPaymentsRepo::save_charge` / `get_charge` — PK=CHARGE#<uuid>, SK=METADATA
+- [ ] **[H]** Implement `DynamoPaymentsRepo::save_refund` — PK=CHARGE#<charge_id>, SK=REFUND#<refund_id>
+- [ ] **[H]** Implement `DynamoPaymentsRepo::add_method` / `list_methods` / `delete_method` — PK=USER#<user_id>, SK=METHOD#<id>
+- [ ] **[H]** Implement `StripeClient::charge` — POST `/v1/payment_intents` with idempotency key
+- [ ] **[H]** Implement `StripeClient::refund` — POST `/v1/refunds`
+- [ ] **[H]** Wire Secrets Manager bootstrap — populate `Config` secret fields at startup
+- [ ] **[H]** Implement JWT RS256 validation in `middleware/auth.rs`
+- [ ] **[M]** Implement `DynamoPaymentsRepo` plan methods — PK=PLAN#<plan_id>, installments as SK=INSTALLMENT#<n>
+- [ ] **[M]** Implement `handlers/methods::execute_installment` — find next `Scheduled` installment, call `provider.charge()`, update status
+- [ ] **[M]** Implement Stripe webhook validation — verify `Stripe-Signature` header using `STRIPE_WEBHOOK_SECRET`
 - [ ] **[M]** Publish `payment.succeeded` / `payment.failed` / `payment.refunded` events to event-bus-api
-- [ ] **[M]** Implement `GET /payments/card-identify` — BIN lookup to identify card network (Visa, Mastercard, Amex, etc.) for UI display before charge
-- [ ] **[M]** Implement subscription billing flow — recurring charge schedule, webhook handling for renewal/failure/cancellation events
-- [ ] **[L]** Add integration tests with Stripe test mode keys
-- [ ] **[M]** Design payment plans data model — installment schedule (plan type, interval, amount per interval, total, remaining balance, status) stored in DynamoDB alongside order/charge records; define `komodo-payment-plans` table schema in `docs/data-model.md`
-- [ ] **[M]** Implement `POST /payments/plans` — create a payment plan from a checkout token or order ID; charge first installment immediately, queue subsequent installments with due dates
-- [ ] **[M]** Implement `GET /me/payments/plans` + `GET /me/payments/plans/{planId}` — list and detail active plans for the authenticated user
-- [ ] **[M]** Implement `POST /payments/plans/{planId}/cancel` — cancel plan and halt future charges; trigger partial refund if policy allows
-- [ ] **[M]** Implement installment execution — scheduled Lambda or cron that charges each due installment; configurable retry schedule for failed charges (e.g. 1 day, 3 days, 7 days before cancellation)
-- [ ] **[M]** Publish `payment.plan.created`, `payment.plan.installment.charged`, `payment.plan.failed`, `payment.plan.completed` events to event-bus-api
+- [ ] **[M]** Publish payment plan events (`payment.plan.created`, `payment.plan.installment.charged`, etc.) to event-bus-api
+- [ ] **[M]** Write `docs/data-model.md` — finalize DynamoDB table schema
+- [ ] **[L]** Implement `common::spawn_app()` in tests + enable integration tests with Stripe test mode
 
 ---
 

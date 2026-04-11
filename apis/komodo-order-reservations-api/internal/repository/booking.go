@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"komodo-order-reservations-api/pkg/v1/models"
+	"komodo-order-reservations-api/internal/models"
 )
 
 // CreateBooking writes a new booking to DynamoDB using a conditional write to prevent double-booking.

@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"komodo-order-reservations-api/pkg/v1/models"
+	"komodo-order-reservations-api/internal/models"
 )
 
 // GetAvailableSlots returns all available slots from the DynamoDB read model.

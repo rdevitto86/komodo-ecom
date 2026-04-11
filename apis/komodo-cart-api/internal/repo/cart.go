@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamodb"
 	"github.com/rdevitto86/komodo-forge-sdk-go/config"
-	"komodo-cart-api/pkg/v1/models"
+	"komodo-cart-api/internal/models"
 )
 
 // table is resolved once at package init from config (set by secrets-manager bootstrap).

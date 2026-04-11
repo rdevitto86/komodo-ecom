@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"komodo-support-api/internal/repository"
-	"komodo-support-api/pkg/v1/models"
+	"komodo-support-api/internal/models"
 )
 
 const (

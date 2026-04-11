@@ -10,7 +10,7 @@ import (
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	"komodo-cart-api/internal/repo"
 	"komodo-cart-api/pkg/v1/client"
-	"komodo-cart-api/pkg/v1/models"
+	"komodo-cart-api/internal/models"
 )
 
 // errForbidden is a package-level sentinel for session mismatch that satisfies error.

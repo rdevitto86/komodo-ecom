@@ -1,36 +1,32 @@
-# komodo-inventory-api
+# komodo-shop-inventory-api
 
 Stock tracking and reservation service. Manages available inventory per SKU, coordinates stock holds during the cart→checkout transition, and decrements confirmed stock on order confirmation.
 
 Separated from `shop-items-api` because stock levels have fundamentally different write throughput and access patterns than catalog data — every order, reservation, cancellation, and restock is a write here.
 
----
+**V1 is Rust (Axum).** The Go scaffold (`komodo-shop-inventory-api`) is abandoned.
 
-## Ports
-
-| Server | Port | Env Var |
-|--------|------|---------|
-| Public | 7044 | `PORT`  |
-
----
-
-## Deployment Target
-
-**AWS Lambda** — event-driven, bursty write pattern (reservations spike at checkout). Identical binary runs locally as a standard HTTP server.
+| Key | Value |
+|-----|-------|
+| Port | 7044 |
+| Domain | Commerce & Catalog |
+| Status | Stub — implement handlers + DynamoDB repo |
+| Language | Rust (Axum 0.7, Tokio) |
+| Deployment | AWS Lambda (target) / EC2 docker-compose (bootstrap) |
 
 ---
 
 ## Routes
 
-| Method   | Path                           | Auth     | Description |
-|----------|--------------------------------|----------|-------------|
-| `GET`    | `/health`                      | None     | Liveness check |
-| `GET`    | `/stock/{sku}`                 | Internal | Get current stock level for a SKU |
-| `POST`   | `/stock/{sku}/reserve`         | Internal | Place a stock hold (TTL-based) |
-| `DELETE` | `/stock/{sku}/reserve/{holdId}`| Internal | Release a hold early (cancellation/failure) |
-| `POST`   | `/stock/{sku}/confirm`         | Internal | Convert hold to confirmed decrement (order confirmed) |
-| `POST`   | `/stock/{sku}/restock`         | Internal | Increment stock (purchase received, return processed) |
-| `GET`    | `/stock`                       | Internal | Batch stock levels for a list of SKUs |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/health` | None | Liveness check |
+| `GET` | `/stock/:sku` | Internal JWT | Get stock level for a single SKU |
+| `GET` | `/stock` | Internal JWT | Batch stock levels (`?skus=A,B,C`, max 100) |
+| `POST` | `/stock/:sku/reserve` | Internal JWT | Place a stock hold (TTL-based) |
+| `DELETE` | `/stock/:sku/reserve/:hold_id` | Internal JWT | Release a hold early |
+| `POST` | `/stock/:sku/confirm` | Internal JWT | Convert hold to confirmed decrement |
+| `POST` | `/stock/:sku/restock` | Internal JWT | Increment stock (received or return processed) |
 
 > **Internal only** — all routes except `/health` require an internal service JWT (`client_credentials` scope). Not exposed via public API gateway.
 
@@ -42,7 +38,7 @@ The core concurrency primitive. Prevents overselling under concurrent demand.
 
 ```
 POST /me/cart/checkout (cart-api)
-  → POST /stock/{sku}/reserve for each item
+  → POST /stock/:sku/reserve for each item
       → DynamoDB conditional write:
           IF available_qty >= requested_qty
           THEN reserved_qty += requested_qty, available_qty -= requested_qty
@@ -51,14 +47,14 @@ POST /me/cart/checkout (cart-api)
   ← checkout_token returned to client
 
 order confirmed (order-api)
-  → POST /stock/{sku}/confirm?hold_id=<id>
+  → POST /stock/:sku/confirm
       → DynamoDB: delete hold record, decrement committed_qty
 
 hold expires (DynamoDB TTL)
   → DynamoDB Streams → Lambda → available_qty restored automatically
 
 payment failed / cart abandoned (cart-api or order-api)
-  → DELETE /stock/{sku}/reserve/{holdId}
+  → DELETE /stock/:sku/reserve/:hold_id
       → DynamoDB: delete hold, restore available_qty
 ```
 
@@ -94,16 +90,16 @@ DynamoDB Streams on this table drive automatic hold release (TTL expiry events) 
 
 ### Process env
 
-| Variable            | Required | Description |
-|---------------------|----------|-------------|
-| `APP_NAME`          | Yes | `komodo-inventory-api` |
-| `ENV`               | Yes | `local`, `dev`, `staging`, `prod` |
-| `LOG_LEVEL`         | Yes | `debug`, `info`, `error` |
-| `PORT`              | Yes | e.g. `:7044` |
-| `AWS_REGION`        | Yes | e.g. `us-east-1` |
-| `AWS_ENDPOINT`      | Yes | LocalStack endpoint or empty for real AWS |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `APP_NAME` | Yes | `komodo-shop-inventory-api` |
+| `ENV` | Yes | `local`, `dev`, `staging`, `prod` |
+| `LOG_LEVEL` | Yes | `debug`, `info`, `error` |
+| `PORT` | Yes | e.g. `7044` |
+| `AWS_REGION` | Yes | e.g. `us-east-1` |
+| `AWS_ENDPOINT` | No | LocalStack endpoint or empty for real AWS |
 | `AWS_SECRET_PREFIX` | Yes | Secrets Manager path prefix |
-| `AWS_SECRET_BATCH`  | Yes | Batch secret name |
+| `AWS_SECRET_BATCH` | Yes | Batch secret name |
 
 ### Secrets (resolved from AWS Secrets Manager at startup)
 
@@ -128,12 +124,13 @@ DynamoDB Streams on this table drive automatic hold release (TTL expiry events) 
 
 ### Run
 ```bash
-cd apis/komodo-inventory-api
+cd apis/komodo-shop-inventory-api-rust
 source .env.local
-go run ./cmd/server
+cargo run
 ```
 
-### Run tests
+### Test
 ```bash
-go test ./...
+cargo test
+cargo test -- --ignored   # run ignored integration tests (requires localstack)
 ```

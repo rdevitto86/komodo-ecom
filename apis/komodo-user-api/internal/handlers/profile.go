@@ -8,7 +8,7 @@ import (
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 
 	"komodo-user-api/internal/service"
-	"komodo-user-api/pkg/v1/models"
+	"komodo-user-api/internal/models"
 )
 
 // resolveUserID returns the user ID from the request, preferring the {id} path

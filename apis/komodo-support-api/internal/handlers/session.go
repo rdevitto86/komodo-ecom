@@ -12,7 +12,7 @@ import (
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"komodo-support-api/internal/repository"
-	"komodo-support-api/pkg/v1/models"
+	"komodo-support-api/internal/models"
 )
 
 const SessionCookieName = "komodo_chat_sid"

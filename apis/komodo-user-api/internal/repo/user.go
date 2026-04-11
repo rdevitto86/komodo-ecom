@@ -8,7 +8,7 @@ import (
 
 	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamodb"
 	"github.com/rdevitto86/komodo-forge-sdk-go/config"
-	"komodo-user-api/pkg/v1/models"
+	"komodo-user-api/internal/models"
 )
 
 // table is resolved at startup from config.

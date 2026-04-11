@@ -7,7 +7,7 @@ import (
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
-	"komodo-event-bus-api/pkg/v1/models"
+	"komodo-event-bus-api/internal/models"
 )
 
 // PublishEvent handles POST /events.

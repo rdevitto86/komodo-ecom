@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"komodo-search-api/pkg/v1/models"
+	"komodo-search-api/internal/models"
 )
 
 // TODO(typesense): add dependency to go.mod:

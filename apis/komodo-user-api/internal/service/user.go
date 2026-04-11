@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"komodo-user-api/internal/repo"
-	"komodo-user-api/pkg/v1/models"
+	"komodo-user-api/internal/models"
 )
 
 // ErrNotFound is the sentinel returned when a requested resource does not exist.

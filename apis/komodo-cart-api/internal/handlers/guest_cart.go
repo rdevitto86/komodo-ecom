@@ -6,7 +6,7 @@ import (
 
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	"komodo-cart-api/internal/service"
-	"komodo-cart-api/pkg/v1/models"
+	"komodo-cart-api/internal/models"
 )
 
 // CreateGuestCart creates a new guest cart and returns its cart ID and session token.

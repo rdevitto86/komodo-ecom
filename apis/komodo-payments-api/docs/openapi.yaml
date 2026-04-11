@@ -1,0 +1,534 @@
+openapi: "3.1.0"
+info:
+  title: komodo-payments-api
+  version: "1.0.0"
+  description: |
+    Payment processing, refunds, payment methods, and installment plan management.
+    Internal routes require a service JWT (client_credentials). User routes require a user JWT.
+servers:
+  - url: http://localhost:7071
+    description: Local dev
+
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: OK
+
+  /payments/charge:
+    post:
+      summary: Charge a payment method
+      operationId: charge
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChargeRequest"
+      responses:
+        "201":
+          description: Charge created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargeResponse"
+        "402":
+          description: Insufficient funds or declined
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/ProviderError"
+
+  /payments/refund:
+    post:
+      summary: Refund a charge (full or partial)
+      operationId: refund
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefundRequest"
+      responses:
+        "200":
+          description: Refund initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/ProviderError"
+
+  /payments/{chargeId}:
+    get:
+      summary: Get charge status
+      operationId: getCharge
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ChargeId"
+      responses:
+        "200":
+          description: Charge details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /me/payments:
+    get:
+      summary: List current user's payment history
+      operationId: listUserPayments
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Payment history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChargeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /payments/webhook:
+    post:
+      summary: Stripe webhook receiver
+      operationId: stripeWebhook
+      security: []
+      description: |
+        Receives Stripe events. Validates Stripe-Signature header.
+        Handles: payment_intent.succeeded, payment_intent.payment_failed, charge.refunded
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Event received
+
+  /me/payments/methods:
+    get:
+      summary: List saved payment methods
+      operationId: listMethods
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Payment methods
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentMethod"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      summary: Add a payment method
+      operationId: addMethod
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddMethodRequest"
+      responses:
+        "201":
+          description: Method added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/payments/methods/{methodId}:
+    delete:
+      summary: Remove a payment method
+      operationId: deleteMethod
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: methodId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Method removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /payments/plans:
+    post:
+      summary: Create a payment plan (installments)
+      operationId: createPlan
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePlanRequest"
+      responses:
+        "201":
+          description: Plan created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentPlan"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/payments/plans:
+    get:
+      summary: List current user's payment plans
+      operationId: listPlans
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Payment plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentPlan"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/payments/plans/{planId}:
+    get:
+      summary: Get a payment plan
+      operationId: getPlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PlanId"
+      responses:
+        "200":
+          description: Plan details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentPlan"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Cancel a payment plan
+      operationId: cancelPlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PlanId"
+      responses:
+        "204":
+          description: Plan canceled
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /internal/payments/plans/{planId}/execute:
+    post:
+      summary: Execute the next due installment (called by scheduled job)
+      operationId: executeInstallment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PlanId"
+      responses:
+        "200":
+          description: Installment processed
+        "402":
+          description: Installment charge failed
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ChargeId:
+      name: chargeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PlanId:
+      name: planId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    ChargeRequest:
+      type: object
+      required: [order_id, amount_cents, currency, payment_method_id, idempotency_key]
+      properties:
+        order_id:
+          type: string
+          format: uuid
+        amount_cents:
+          type: integer
+          minimum: 1
+        currency:
+          type: string
+          example: USD
+        payment_method_id:
+          type: string
+        idempotency_key:
+          type: string
+          format: uuid
+
+    ChargeResponse:
+      type: object
+      required: [charge_id, order_id, amount_cents, currency, status, provider_charge_id, created_at]
+      properties:
+        charge_id:
+          type: string
+          format: uuid
+        order_id:
+          type: string
+          format: uuid
+        amount_cents:
+          type: integer
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [pending, succeeded, failed, canceled]
+        provider_charge_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    RefundRequest:
+      type: object
+      required: [charge_id]
+      properties:
+        charge_id:
+          type: string
+          format: uuid
+        amount_cents:
+          type: integer
+          description: Omit for full refund
+        reason:
+          type: string
+
+    RefundResponse:
+      type: object
+      required: [refund_id, charge_id, amount_cents, status, provider_refund_id, created_at]
+      properties:
+        refund_id:
+          type: string
+          format: uuid
+        charge_id:
+          type: string
+          format: uuid
+        amount_cents:
+          type: integer
+        status:
+          type: string
+          enum: [pending, succeeded, failed]
+        provider_refund_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    PaymentMethod:
+      type: object
+      required: [id, last4, brand, exp_month, exp_year, is_default, created_at]
+      properties:
+        id:
+          type: string
+        last4:
+          type: string
+        brand:
+          type: string
+          enum: [visa, mastercard, amex, discover, other]
+        exp_month:
+          type: integer
+        exp_year:
+          type: integer
+        is_default:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    AddMethodRequest:
+      type: object
+      required: [provider_token]
+      properties:
+        provider_token:
+          type: string
+          description: Stripe SetupIntent or PaymentMethod token
+        set_default:
+          type: boolean
+
+    Installment:
+      type: object
+      required: [index, amount_cents, due_at, status]
+      properties:
+        index:
+          type: integer
+        amount_cents:
+          type: integer
+        due_at:
+          type: string
+          format: date-time
+        paid_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [scheduled, paid, failed, skipped]
+
+    PaymentPlan:
+      type: object
+      required: [plan_id, order_id, total_amount_cents, installment_count, status, installments, created_at]
+      properties:
+        plan_id:
+          type: string
+          format: uuid
+        order_id:
+          type: string
+          format: uuid
+        payment_method_id:
+          type: string
+        total_amount_cents:
+          type: integer
+        installment_count:
+          type: integer
+        status:
+          type: string
+          enum: [active, completed, canceled, defaulted]
+        installments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Installment"
+        created_at:
+          type: string
+          format: date-time
+
+    CreatePlanRequest:
+      type: object
+      required: [order_id, payment_method_id, total_amount_cents, installment_count, first_due_at, interval_days]
+      properties:
+        order_id:
+          type: string
+          format: uuid
+        payment_method_id:
+          type: string
+        total_amount_cents:
+          type: integer
+          minimum: 1
+        installment_count:
+          type: integer
+          minimum: 2
+          maximum: 24
+        first_due_at:
+          type: string
+          format: date-time
+        interval_days:
+          type: integer
+          description: Days between installments (e.g. 30 for monthly)
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    ProviderError:
+      description: Payment provider returned an error
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

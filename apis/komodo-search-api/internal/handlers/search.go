@@ -7,7 +7,7 @@ import (
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
-	"komodo-search-api/pkg/v1/models"
+	"komodo-search-api/internal/models"
 )
 
 // Search handles GET /search

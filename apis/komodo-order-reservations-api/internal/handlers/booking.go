@@ -8,7 +8,7 @@ import (
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"komodo-order-reservations-api/internal/repository"
-	"komodo-order-reservations-api/pkg/v1/models"
+	"komodo-order-reservations-api/internal/models"
 )
 
 // CreateBooking reserves a slot for a customer.

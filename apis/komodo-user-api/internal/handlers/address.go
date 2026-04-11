@@ -7,7 +7,7 @@ import (
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 
 	"komodo-user-api/internal/service"
-	"komodo-user-api/pkg/v1/models"
+	"komodo-user-api/internal/models"
 )
 
 // GetAddresses returns all addresses for the authenticated user.

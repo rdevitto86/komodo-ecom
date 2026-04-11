@@ -7,7 +7,7 @@ import (
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 
 	"komodo-user-api/internal/service"
-	"komodo-user-api/pkg/v1/models"
+	"komodo-user-api/internal/models"
 )
 
 // GetPayments returns all saved payment methods for the authenticated user.

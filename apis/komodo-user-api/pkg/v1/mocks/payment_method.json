@@ -1,9 +1,0 @@
-{
-  "payment_id": "pmt_3j7k2m9n4p8q5r1s",
-  "provider": "stripe",
-  "last4": "4242",
-  "brand": "visa",
-  "expiry_month": 12,
-  "expiry_year": 2027,
-  "is_default": true
-}

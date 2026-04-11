@@ -7,7 +7,7 @@ import (
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
-	"komodo-shop-items-api/pkg/v1/models"
+	"komodo-shop-items-api/internal/models"
 )
 
 // Returns product suggestions based on user viewing habits (auth required)

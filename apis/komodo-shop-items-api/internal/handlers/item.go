@@ -9,7 +9,7 @@ import (
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"komodo-shop-items-api/pkg/v1/client"
-	"komodo-shop-items-api/pkg/v1/models"
+	"komodo-shop-items-api/internal/models"
 )
 
 // Returns a single item (product or service) by SKU

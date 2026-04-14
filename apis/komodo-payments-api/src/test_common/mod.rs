@@ -7,6 +7,6 @@
 /// let res = client.get(format!("{}/health", addr)).send().await.unwrap();
 /// ```
 pub async fn spawn_app() -> String {
-    // TODO: wire up a test DynamoDB (localstack) before enabling
-    todo!("spawn test server on random port with DynamoInventoryRepo pointing at LocalStack")
+    // TODO: wire up a test DynamoDB (localstack) and Stripe mock before enabling
+    todo!("spawn test server on random port with mock repo/provider")
 }

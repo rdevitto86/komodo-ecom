@@ -124,7 +124,6 @@ Three `TODO.md` files serve as the project's living backlog. Check the relevant 
    - `http/request` — `request.GetQueryParams`, `GetClientKey`, `GetRequestID`, etc.
    - `http/response` — `ResponseWriter` wrapper, `IsSuccess`, `IsError`, etc.
    - `aws/secrets-manager` — `secretsmanager.Bootstrap`, `GetSecret`, `GetSecrets`
-   - `config` — `config.GetConfigValue`, `SetConfigValue`
    - `logging/runtime` — `logger.Info`, `logger.Error`, `logger.Warn`, `logger.Attr`
    - `http/context` — context keys (`USER_ID_KEY`, `SESSION_ID_KEY`, `SCOPES_KEY`, etc.)
    - `events` — `events.Event`, `EventType`, `Source`, `EntityType` constants, `events.New`

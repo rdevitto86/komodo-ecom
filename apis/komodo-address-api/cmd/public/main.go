@@ -9,7 +9,6 @@ import (
 	"komodo-address-api/internal/provider"
 
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
@@ -19,17 +18,13 @@ import (
 // init runs once per execution environment (cold start on Lambda, once on Fargate/local).
 // Order matters: logger first, then SM (loads JWT_* keys), then JWT init.
 func init() {
-	logger.Init(
-		config.GetConfigValue("APP_NAME"),
-		config.GetConfigValue("LOG_LEVEL"),
-		config.GetConfigValue("ENV"),
-	)
+	logger.Init(os.Getenv("APP_NAME"), os.Getenv("LOG_LEVEL"), os.Getenv("ENV"))
 
 	if err := awsSM.Bootstrap(awsSM.Config{
-		Region:   config.GetConfigValue("AWS_REGION"),
-		Endpoint: config.GetConfigValue("AWS_ENDPOINT"),
-		Prefix:   config.GetConfigValue("AWS_SECRET_PREFIX"),
-		Batch:    config.GetConfigValue("AWS_SECRET_BATCH"),
+		Region:   os.Getenv("AWS_REGION"),
+		Endpoint: os.Getenv("AWS_ENDPOINT"),
+		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
+		Batch:    os.Getenv("AWS_SECRET_BATCH"),
 		Keys: []string{
 			"JWT_PUBLIC_KEY",
 			"JWT_PRIVATE_KEY",
@@ -67,7 +62,7 @@ func main() {
 		mw.SanitizationMiddleware,
 	}
 
-	providerClient := provider.NewClient(config.GetConfigValue("ADDRESS_PROVIDER_API_KEY"))
+	providerClient := provider.NewClient(os.Getenv("ADDRESS_PROVIDER_API_KEY"))
 
 	mux := http.NewServeMux()
 
@@ -85,5 +80,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	srv.Run(server, config.GetConfigValue("PORT"), 30*time.Second)
+	srv.Run(server, os.Getenv("PORT"), 30*time.Second)
 }

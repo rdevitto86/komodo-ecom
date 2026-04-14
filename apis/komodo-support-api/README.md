@@ -59,7 +59,7 @@ Escalated flag is persisted on the session. The `POST /chat/escalate` endpoint h
 
 ```go
 // Current default
-llm := service.NewAnthropicProvider(config.GetConfigValue("ANTHROPIC_API_KEY"))
+llm := service.NewAnthropicProvider(os.Getenv("ANTHROPIC_API_KEY"))
 
 // Future: OpenAI, Bedrock, Ollama, etc.
 // llm := service.NewOpenAIProvider(...)

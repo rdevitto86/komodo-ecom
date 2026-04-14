@@ -3,13 +3,13 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
-	"komodo-shop-items-api/pkg/v1/client"
 	"komodo-shop-items-api/internal/models"
+	"komodo-shop-items-api/pkg/v1/client"
 )
 
 // Returns a single item (product or service) by SKU
@@ -22,7 +22,7 @@ func GetItemBySKU(wtr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	bucket := config.GetConfigValue("S3_ITEMS_BUCKET")
+	bucket := os.Getenv("S3_ITEMS_BUCKET")
 	if bucket == "" {
 		logger.Error("S3_ITEMS_BUCKET not configured", nil)
 		httpErr.SendError(wtr, req, models.Err.StorageError, httpErr.WithDetail("storage not configured"))

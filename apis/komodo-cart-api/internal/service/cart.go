@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
+
+	"komodo-cart-api/internal/models"
+	"komodo-cart-api/internal/repo"
+	"komodo-cart-api/pkg/v1/client"
 
 	"github.com/google/uuid"
 	"github.com/rdevitto86/komodo-forge-sdk-go/aws/elasticache"
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
-	"komodo-cart-api/internal/repo"
-	"komodo-cart-api/pkg/v1/client"
-	"komodo-cart-api/internal/models"
 )
 
 // errBadRequest and errBadGateway are CartError sentinels for generic HTTP errors
@@ -213,7 +214,7 @@ func (s *CartService) Checkout(ctx context.Context, userID string) (*models.Chec
 		return nil, errBadRequest
 	}
 
-	isLocal := config.GetConfigValue("ENV") == "local"
+	isLocal := os.Getenv("ENV") == "local"
 	holdIDs := make(map[string]string, len(cart.Items))
 	var conflictSKUs []string
 	expiresAt := time.Now().UTC().Add(time.Duration(s.holdTTL) * time.Second)

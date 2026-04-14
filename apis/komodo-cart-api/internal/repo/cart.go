@@ -3,19 +3,20 @@ package repo
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
+
+	"komodo-cart-api/internal/models"
 
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	ddbTypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
 	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamodb"
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
-	"komodo-cart-api/internal/models"
 )
 
 // table is resolved once at package init from config (set by secrets-manager bootstrap).
-var table = config.GetConfigValue("DYNAMODB_CARTS_TABLE")
+var table = os.Getenv("DYNAMODB_CARTS_TABLE")
 
 // cartMetaRecord is the METADATA row for a user's cart.
 type cartMetaRecord struct {

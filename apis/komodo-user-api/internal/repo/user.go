@@ -3,18 +3,19 @@ package repo
 import (
 	"context"
 	"fmt"
+	"os"
 
 	ddbTypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
-	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamodb"
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	"komodo-user-api/internal/models"
+
+	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamodb"
 )
 
 // table is resolved at startup from config.
 // Set DYNAMODB_TABLE=komodo-users for LocalStack and production alike —
 // the forge DynamoDB client switches endpoints transparently via DYNAMODB_ENDPOINT.
-var table = config.GetConfigValue("DYNAMODB_TABLE")
+var table = os.Getenv("DYNAMODB_TABLE")
 
 // TODO: define full key schema in data-model.md before finalizing these functions.
 // Placeholder pattern used below: PK=USER#<id>, SK=PROFILE|ADDR#<id>|PREFS

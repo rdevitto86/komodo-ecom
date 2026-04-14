@@ -1,17 +1,17 @@
 package main
 
 import (
-	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamodb"
-	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
-	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
-	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
-	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
-	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 	"komodo-user-api/internal/handlers"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamodb"
+	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
+	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
+	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
+	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
 
 // init runs once per execution environment (cold start on Lambda, once on Fargate/local).
@@ -19,16 +19,16 @@ import (
 // CSRF, or idempotency keys needed.
 func init() {
 	logger.Init(
-		config.GetConfigValue("APP_NAME"),
-		config.GetConfigValue("LOG_LEVEL"),
-		config.GetConfigValue("ENV"),
+		os.Getenv("APP_NAME"),
+		os.Getenv("LOG_LEVEL"),
+		os.Getenv("ENV"),
 	)
 
 	smCfg := awsSM.Config{
-		Region:   config.GetConfigValue("AWS_REGION"),
-		Endpoint: config.GetConfigValue("AWS_ENDPOINT"),
-		Prefix:   config.GetConfigValue("AWS_SECRET_PREFIX"),
-		Batch:    config.GetConfigValue("AWS_SECRET_BATCH"),
+		Region:   os.Getenv("AWS_REGION"),
+		Endpoint: os.Getenv("AWS_ENDPOINT"),
+		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
+		Batch:    os.Getenv("AWS_SECRET_BATCH"),
 		Keys: []string{
 			"DYNAMODB_ENDPOINT",
 			"DYNAMODB_ACCESS_KEY",
@@ -49,10 +49,10 @@ func init() {
 	}
 
 	ddbCfg := dynamodb.Config{
-		Region:    config.GetConfigValue("AWS_REGION"),
-		Endpoint:  config.GetConfigValue("DYNAMODB_ENDPOINT"),
-		AccessKey: config.GetConfigValue("DYNAMODB_ACCESS_KEY"),
-		SecretKey: config.GetConfigValue("DYNAMODB_SECRET_KEY"),
+		Region:    os.Getenv("AWS_REGION"),
+		Endpoint:  os.Getenv("DYNAMODB_ENDPOINT"),
+		AccessKey: os.Getenv("DYNAMODB_ACCESS_KEY"),
+		SecretKey: os.Getenv("DYNAMODB_SECRET_KEY"),
 	}
 	if err := dynamodb.Init(ddbCfg); err != nil {
 		logger.Fatal("failed to initialize dynamodb", err)
@@ -95,5 +95,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	srv.Run(server, config.GetConfigValue("INTERNAL_PORT"), 30*time.Second)
+	srv.Run(server, os.Getenv("INTERNAL_PORT"), 30*time.Second)
 }

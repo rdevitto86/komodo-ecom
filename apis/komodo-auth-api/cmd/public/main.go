@@ -3,32 +3,32 @@ package main
 import (
 	"komodo-auth-api/internal/handlers"
 	"komodo-auth-api/internal/registry"
+	"net/http"
+	"os"
+	"time"
+
 	awsEC "github.com/rdevitto86/komodo-forge-sdk-go/aws/elasticache"
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
-	"net/http"
-	"os"
-	"time"
 )
 
 // init runs once per execution environment (cold start on Lambda, once on Fargate/local).
 // Order matters: SM must run before JWT (needs JWT_* keys) and before ElastiCache (needs endpoint).
 func init() {
 	logger.Init(
-		config.GetConfigValue("APP_NAME"),
-		config.GetConfigValue("LOG_LEVEL"),
-		config.GetConfigValue("ENV"),
+		os.Getenv("APP_NAME"),
+		os.Getenv("LOG_LEVEL"),
+		os.Getenv("ENV"),
 	)
 
 	smCfg := awsSM.Config{
-		Region:   config.GetConfigValue("AWS_REGION"),
-		Endpoint: config.GetConfigValue("AWS_ENDPOINT"),
-		Prefix:   config.GetConfigValue("AWS_SECRET_PREFIX"),
-		Batch:    config.GetConfigValue("AWS_SECRET_BATCH"),
+		Region:   os.Getenv("AWS_REGION"),
+		Endpoint: os.Getenv("AWS_ENDPOINT"),
+		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
+		Batch:    os.Getenv("AWS_SECRET_BATCH"),
 		Keys: []string{
 			"AWS_ELASTICACHE_ENDPOINT",
 			"AWS_ELASTICACHE_PASSWORD",
@@ -59,9 +59,9 @@ func init() {
 	}
 
 	ecCfg := awsEC.Config{
-		Endpoint: config.GetConfigValue("AWS_ELASTICACHE_ENDPOINT"),
-		Password: config.GetConfigValue("AWS_ELASTICACHE_PASSWORD"),
-		DB:       config.GetConfigValue("AWS_ELASTICACHE_DB"),
+		Endpoint: os.Getenv("AWS_ELASTICACHE_ENDPOINT"),
+		Password: os.Getenv("AWS_ELASTICACHE_PASSWORD"),
+		DB:       os.Getenv("AWS_ELASTICACHE_DB"),
 	}
 	if err := awsEC.Init(ecCfg); err != nil {
 		logger.Fatal("failed to initialize elasticache", err)
@@ -109,5 +109,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	srv.Run(server, config.GetConfigValue("PORT"), 30*time.Second)
+	srv.Run(server, os.Getenv("PORT"), 30*time.Second)
 }

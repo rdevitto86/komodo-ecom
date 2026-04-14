@@ -6,34 +6,23 @@ import (
 	"time"
 
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
+	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"komodo-search-api/internal/handlers"
 )
 
 func init() {
-	logger.Init(
-		config.GetConfigValue("APP_NAME"),
-		config.GetConfigValue("LOG_LEVEL"),
-		config.GetConfigValue("ENV"),
-	)
-}
-
-func chain(handler http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		handler = middlewares[i](handler)
-	}
-	return handler
+	logger.Init(os.Getenv("APP_NAME"), os.Getenv("LOG_LEVEL"), os.Getenv("ENV"))
 }
 
 func main() {
 	smCfg := awsSM.Config{
-		Region:   config.GetConfigValue("AWS_REGION"),
-		Endpoint: config.GetConfigValue("AWS_ENDPOINT"),
-		Prefix:   config.GetConfigValue("AWS_SECRET_PREFIX"),
-		Batch:    config.GetConfigValue("AWS_SECRET_BATCH"),
+		Region:   os.Getenv("AWS_REGION"),
+		Endpoint: os.Getenv("AWS_ENDPOINT"),
+		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
+		Batch:    os.Getenv("AWS_SECRET_BATCH"),
 		Keys: []string{
 			"SEARCH_API_CLIENT_ID",
 			"SEARCH_API_CLIENT_SECRET",
@@ -76,14 +65,14 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handlers.HealthHandler)
-	mux.Handle("GET /search", chain(http.HandlerFunc(handlers.Search), searchMW...))
+	mux.Handle("GET /search", mw.Chain(http.HandlerFunc(handlers.Search), searchMW...))
 
 	// TODO(typesense): add index management routes (internal only):
 	//   POST /internal/index/sync  — full re-index from shop-items-api (manual trigger)
 	//   DELETE /internal/index     — drop and recreate collection (for schema changes)
 
 	server := &http.Server{
-		Addr:              ":" + config.GetConfigValue("PORT"),
+		Addr:              ":" + os.Getenv("PORT"),
 		Handler:           mux,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -92,9 +81,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Fatal("server failed to start", err)
-		os.Exit(1)
-	}
-	logger.Info("server started successfully")
+	srv.Run(server, os.Getenv("PORT"), 30*time.Second)
 }

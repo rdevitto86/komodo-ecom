@@ -7,10 +7,9 @@ import (
 	"time"
 
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	cryptoJWT "github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
-	"github.com/rdevitto86/komodo-forge-sdk-go/http/server"
+	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"komodo-event-bus-api/internal/relay"
@@ -21,18 +20,18 @@ import (
 
 func init() {
 	logger.Init(
-		config.GetConfigValue("APP_NAME"),
-		config.GetConfigValue("LOG_LEVEL"),
-		config.GetConfigValue("ENV"),
+		os.Getenv("APP_NAME"),
+		os.Getenv("LOG_LEVEL"),
+		os.Getenv("ENV"),
 	)
 }
 
 func main() {
 	smCfg := awsSM.Config{
-		Region:   config.GetConfigValue("AWS_REGION"),
-		Endpoint: config.GetConfigValue("AWS_ENDPOINT"),
-		Prefix:   config.GetConfigValue("AWS_SECRET_PREFIX"),
-		Batch:    config.GetConfigValue("AWS_SECRET_BATCH"),
+		Region:   os.Getenv("AWS_REGION"),
+		Endpoint: os.Getenv("AWS_ENDPOINT"),
+		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
+		Batch:    os.Getenv("AWS_SECRET_BATCH"),
 		Keys: []string{
 			"SNS_TOPIC_ARN_PREFIX",
 			"JWT_PUBLIC_KEY",
@@ -56,7 +55,7 @@ func main() {
 	}
 
 	cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
-		awsconfig.WithRegion(config.GetConfigValue("AWS_REGION")),
+		awsconfig.WithRegion(os.Getenv("AWS_REGION")),
 	)
 	if err != nil {
 		logger.Fatal("failed to load AWS config", err)
@@ -64,7 +63,7 @@ func main() {
 	}
 
 	var snsClient *sns.Client
-	if endpoint := config.GetConfigValue("AWS_ENDPOINT"); endpoint != "" {
+	if endpoint := os.Getenv("AWS_ENDPOINT"); endpoint != "" {
 		snsClient = sns.NewFromConfig(cfg, func(o *sns.Options) {
 			o.BaseEndpoint = &endpoint
 		})
@@ -87,7 +86,7 @@ func main() {
 	mux.HandleFunc("GET /health", relay.HealthHandler)
 	mux.Handle("POST /events", mw.Chain(pub.PublishEvent, internalMW...))
 
-	srv := &http.Server{
+	server := &http.Server{
 		Handler:           mux,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -96,11 +95,11 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	server.Run(srv, config.GetConfigValue("PORT"), 10*time.Second)
+	srv.Run(server, os.Getenv("PORT"), 10*time.Second)
 }
 
 func mustConfig(key string) string {
-	if v := config.GetConfigValue(key); v != "" { return v }
+	if v := os.Getenv(key); v != "" { return v }
 	logger.Fatal("missing required config: " + key, nil)
 	os.Exit(1)
 	return ""

@@ -4,10 +4,9 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
-
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 )
 
 // ClientRecord is the stored representation of a registered OAuth client.
@@ -50,7 +49,7 @@ var once sync.Once
 // Load parses REGISTERED_CLIENTS from config into the global registry.
 // Must be called once after Secrets Manager has been bootstrapped.
 func Load() error {
-	raw := config.GetConfigValue("REGISTERED_CLIENTS")
+	raw := os.Getenv("REGISTERED_CLIENTS")
 	if raw == "" {
 		return fmt.Errorf("registry: REGISTERED_CLIENTS not configured")
 	}

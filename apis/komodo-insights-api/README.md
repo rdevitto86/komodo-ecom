@@ -27,13 +27,13 @@ implementation in `cmd/public/main.go` without touching handler or service code:
 
 ```go
 // Anthropic
-service.NewAnthropicProvider(config.GetConfigValue("LLM_API_KEY"))
+service.NewAnthropicProvider(os.Getenv("LLM_API_KEY"))
 
 // AWS Bedrock
 service.NewBedrockProvider(cfg)
 
 // On-prem / OpenAI-compatible
-service.NewOpenAICompatProvider(config.GetConfigValue("LLM_PROVIDER_URL"), ...)
+service.NewOpenAICompatProvider(os.Getenv("LLM_PROVIDER_URL"), ...)
 ```
 
 ## Environment Variables

@@ -3,15 +3,15 @@ package main
 import (
 	"komodo-auth-api/internal/handlers"
 	"komodo-auth-api/internal/registry"
+	"net/http"
+	"os"
+	"time"
+
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
-	"net/http"
-	"os"
-	"time"
 )
 
 // init runs once per execution environment.
@@ -19,16 +19,16 @@ import (
 // ElastiCache is not needed — revocation checks are public-port concerns.
 func init() {
 	logger.Init(
-		config.GetConfigValue("APP_NAME"),
-		config.GetConfigValue("LOG_LEVEL"),
-		config.GetConfigValue("ENV"),
+		os.Getenv("APP_NAME"),
+		os.Getenv("LOG_LEVEL"),
+		os.Getenv("ENV"),
 	)
 
 	smCfg := awsSM.Config{
-		Region:   config.GetConfigValue("AWS_REGION"),
-		Endpoint: config.GetConfigValue("AWS_ENDPOINT"),
-		Prefix:   config.GetConfigValue("AWS_SECRET_PREFIX"),
-		Batch:    config.GetConfigValue("AWS_SECRET_BATCH"),
+		Region:   os.Getenv("AWS_REGION"),
+		Endpoint: os.Getenv("AWS_ENDPOINT"),
+		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
+		Batch:    os.Getenv("AWS_SECRET_BATCH"),
 		Keys: []string{
 			"JWT_PUBLIC_KEY",
 			"JWT_PRIVATE_KEY",
@@ -81,5 +81,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	srv.Run(server, config.GetConfigValue("INTERNAL_PORT"), 30*time.Second)
+	srv.Run(server, os.Getenv("INTERNAL_PORT"), 30*time.Second)
 }

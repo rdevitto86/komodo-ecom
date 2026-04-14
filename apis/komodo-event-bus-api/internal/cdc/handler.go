@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	komodoEvents "github.com/rdevitto86/komodo-forge-sdk-go/events"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
@@ -29,7 +29,7 @@ func NewHandler(snsClient *sns.Client, topicARNPrefix string) *Handler {
 	return &Handler{
 		sns:            snsClient,
 		topicARNPrefix: topicARNPrefix,
-		env:            config.GetConfigValue("ENV"),
+		env:            os.Getenv("ENV"),
 	}
 }
 
@@ -96,12 +96,8 @@ func (h *Handler) toPendingPublish(record events.DynamoDBEventRecord) (pendingPu
 
 func (h *Handler) processRecord(ctx context.Context, record events.DynamoDBEventRecord) error {
 	pp, ok, err := h.toPendingPublish(record)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return nil
-	}
+	if err != nil { return err }
+	if !ok { return nil }
 
 	// SNS FIFO: MessageGroupId preserves per-entity ordering while allowing
 	// cross-entity parallelism. MessageDeduplicationId prevents duplicates.
@@ -223,8 +219,6 @@ func (h *Handler) publishBatch(ctx context.Context, topicARN string, pending []p
 // Format: arn:aws:dynamodb:REGION:ACCOUNT:table/TABLE_NAME/stream/TIMESTAMP
 func tableNameFromARN(arn string) string {
 	parts := strings.SplitN(arn, "/", 3)
-	if len(parts) < 2 {
-		return ""
-	}
+	if len(parts) < 2 { return "" }
 	return parts[1]
 }

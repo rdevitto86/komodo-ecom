@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"os"
 
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
@@ -34,7 +34,7 @@ func JWKSHandler(wtr http.ResponseWriter, req *http.Request) {
 	wtr.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour
 
 	// Get public key from environment
-	publicKeyPEM := config.GetConfigValue("JWT_PUBLIC_KEY")
+	publicKeyPEM := os.Getenv("JWT_PUBLIC_KEY")
 	if publicKeyPEM == "" {
 		logger.Error("JWT_PUBLIC_KEY not configured", fmt.Errorf("JWT_PUBLIC_KEY not configured"))
 		httpErr.SendError(
@@ -83,7 +83,7 @@ func JWKSHandler(wtr http.ResponseWriter, req *http.Request) {
 			{
 				Kty: "RSA",
 				Use: "sig",
-				Kid: config.GetConfigValue("JWT_KID"),
+				Kid: os.Getenv("JWT_KID"),
 				Alg: "RS256",
 				N: base64.RawURLEncoding.EncodeToString(nBytes),
 				E: base64.RawURLEncoding.EncodeToString(eBytes),

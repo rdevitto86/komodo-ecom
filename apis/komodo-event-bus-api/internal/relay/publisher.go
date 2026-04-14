@@ -4,8 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
@@ -24,7 +23,7 @@ func NewPublisher(snsClient *sns.Client, topicARNPrefix string) *Publisher {
 	return &Publisher{
 		sns:            snsClient,
 		topicARNPrefix: topicARNPrefix,
-		env:            config.GetConfigValue("ENV"),
+		env:            os.Getenv("ENV"),
 	}
 }
 

@@ -1,33 +1,33 @@
 package main
 
 import (
-	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
-	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
-	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
-	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
-	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 	"komodo-insights-api/internal/handlers"
 	"komodo-insights-api/internal/service"
 	"net/http"
 	"os"
 	"time"
+
+	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
+	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
+	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
+	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
 
 // init runs once per execution environment (cold start on Lambda, once on Fargate/local).
 // Order matters: SM must run before JWT (needs JWT_PUBLIC_KEY).
 func init() {
 	logger.Init(
-		config.GetConfigValue("APP_NAME"),
-		config.GetConfigValue("LOG_LEVEL"),
-		config.GetConfigValue("ENV"),
+		os.Getenv("APP_NAME"),
+		os.Getenv("LOG_LEVEL"),
+		os.Getenv("ENV"),
 	)
 
 	smCfg := awsSM.Config{
-		Region:   config.GetConfigValue("AWS_REGION"),
-		Endpoint: config.GetConfigValue("AWS_ENDPOINT"),
-		Prefix:   config.GetConfigValue("AWS_SECRET_PREFIX"),
-		Batch:    config.GetConfigValue("AWS_SECRET_BATCH"),
+		Region:   os.Getenv("AWS_REGION"),
+		Endpoint: os.Getenv("AWS_ENDPOINT"),
+		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
+		Batch:    os.Getenv("AWS_SECRET_BATCH"),
 		Keys: []string{
 			// LLM backend — provider-agnostic names; concrete impl reads these at startup.
 			// LLM_PROVIDER_URL is empty for hosted APIs (Anthropic, Bedrock); set for on-prem.
@@ -93,14 +93,12 @@ func main() {
 
 	server := &http.Server{
 		Handler: mux,
-		// WriteTimeout is elevated to accommodate LLM response latency.
-		// Reduce if switching to a streaming response model.
 		ReadTimeout:       5 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      30 * time.Second, // WriteTimeout is elevated to accommodate LLM response latency.
 		IdleTimeout:       60 * time.Second,
 		ReadHeaderTimeout: 2 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	srv.Run(server, config.GetConfigValue("PORT"), 30*time.Second)
+	srv.Run(server, os.Getenv("PORT"), 30*time.Second)
 }

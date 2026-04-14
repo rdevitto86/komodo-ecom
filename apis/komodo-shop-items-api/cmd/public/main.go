@@ -1,39 +1,28 @@
 package main
 
 import (
-	awsS3 "github.com/rdevitto86/komodo-forge-sdk-go/aws/s3"
-	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
-	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
-	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 	"komodo-shop-items-api/internal/handlers"
 	"net/http"
 	"os"
 	"time"
+
+	awsS3 "github.com/rdevitto86/komodo-forge-sdk-go/aws/s3"
+	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
+	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
+	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
+	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
 
 func init() {
-	logger.Init(
-		config.GetConfigValue("APP_NAME"),
-		config.GetConfigValue("LOG_LEVEL"),
-		config.GetConfigValue("ENV"),
-	)
-}
-
-// chain applies middleware in order: first listed = outermost wrapper.
-func chain(handler http.Handler, middlewares ...func(http.Handler) http.Handler) http.Handler {
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		handler = middlewares[i](handler)
-	}
-	return handler
+	logger.Init(os.Getenv("APP_NAME"), os.Getenv("LOG_LEVEL"), os.Getenv("ENV"))
 }
 
 func main() {
 	smCfg := awsSM.Config{
-		Region:   config.GetConfigValue("AWS_REGION"),
-		Endpoint: config.GetConfigValue("AWS_ENDPOINT"),
-		Prefix:   config.GetConfigValue("AWS_SECRET_PREFIX"),
-		Batch:    config.GetConfigValue("AWS_SECRET_BATCH"),
+		Region:   os.Getenv("AWS_REGION"),
+		Endpoint: os.Getenv("AWS_ENDPOINT"),
+		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
+		Batch:    os.Getenv("AWS_SECRET_BATCH"),
 		Keys: []string{
 			"S3_ENDPOINT",
 			"S3_ACCESS_KEY",
@@ -58,10 +47,10 @@ func main() {
 	}
 
 	s3Cfg := awsS3.Config{
-		Region:    config.GetConfigValue("AWS_REGION"),
-		Endpoint:  config.GetConfigValue("S3_ENDPOINT"),
-		AccessKey: config.GetConfigValue("S3_ACCESS_KEY"),
-		SecretKey: config.GetConfigValue("S3_SECRET_KEY"),
+		Region:    os.Getenv("AWS_REGION"),
+		Endpoint:  os.Getenv("S3_ENDPOINT"),
+		AccessKey: os.Getenv("S3_ACCESS_KEY"),
+		SecretKey: os.Getenv("S3_SECRET_KEY"),
 	}
 	if err := awsS3.Init(s3Cfg); err != nil {
 		logger.Fatal("failed to initialize s3", err)
@@ -92,13 +81,12 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handlers.HealthHandler)
 
-	mux.Handle("GET /item/inventory", chain(http.HandlerFunc(handlers.GetInventory), itemMW...))
-	mux.Handle("GET /item/{sku}", chain(http.HandlerFunc(handlers.GetItemBySKU), itemMW...))
-
-	mux.Handle("POST /item/suggestion", chain(http.HandlerFunc(handlers.GetSuggestions), protectedMW...))
+	mux.Handle("GET /item/inventory", mw.Chain(http.HandlerFunc(handlers.GetInventory), itemMW...))
+	mux.Handle("GET /item/{sku}", mw.Chain(http.HandlerFunc(handlers.GetItemBySKU), itemMW...))
+	mux.Handle("POST /item/suggestion", mw.Chain(http.HandlerFunc(handlers.GetSuggestions), protectedMW...))
 
 	server := &http.Server{
-		Addr:              ":" + config.GetConfigValue("PORT"),
+		Addr:              ":" + os.Getenv("PORT"),
 		Handler:           mux,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -107,9 +95,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Fatal("server failed to start", err)
-		os.Exit(1)
-	}
-	logger.Info("server started successfully")
+	srv.Run(server, os.Getenv("PORT"), 30*time.Second)
 }

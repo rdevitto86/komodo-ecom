@@ -6,9 +6,8 @@ import (
 	"time"
 
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
-	"github.com/rdevitto86/komodo-forge-sdk-go/config"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
-	"github.com/rdevitto86/komodo-forge-sdk-go/http/server"
+	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"komodo-support-api/internal/handlers"
@@ -17,19 +16,15 @@ import (
 )
 
 func init() {
-	logger.Init(
-		config.GetConfigValue("APP_NAME"),
-		config.GetConfigValue("LOG_LEVEL"),
-		config.GetConfigValue("ENV"),
-	)
+	logger.Init(os.Getenv("APP_NAME"), os.Getenv("LOG_LEVEL"), os.Getenv("ENV"))
 }
 
 func main() {
 	smCfg := awsSM.Config{
-		Region:   config.GetConfigValue("AWS_REGION"),
-		Endpoint: config.GetConfigValue("AWS_ENDPOINT"),
-		Prefix:   config.GetConfigValue("AWS_SECRET_PREFIX"),
-		Batch:    config.GetConfigValue("AWS_SECRET_BATCH"),
+		Region:   os.Getenv("AWS_REGION"),
+		Endpoint: os.Getenv("AWS_ENDPOINT"),
+		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
+		Batch:    os.Getenv("AWS_SECRET_BATCH"),
 		Keys: []string{
 			"ANTHROPIC_API_KEY",
 			"SUPPORT_API_CLIENT_ID",
@@ -52,7 +47,7 @@ func main() {
 
 	// LLMProvider is swappable — default is Anthropic Haiku 4.5.
 	// To try a different provider, implement service.LLMProvider and inject here.
-	llm := service.NewAnthropicProvider(config.GetConfigValue("ANTHROPIC_API_KEY"))
+	llm := service.NewAnthropicProvider(os.Getenv("ANTHROPIC_API_KEY"))
 	chatSvc := service.NewChatService(llm, chatRepo)
 
 	chatHandler := handlers.NewChatHandler(chatSvc, chatRepo)
@@ -93,8 +88,8 @@ func main() {
 	mux.Handle("GET /me/chat/history", mw.Chain(chatHandler.GetHistory, protectedMW...))
 	mux.Handle("DELETE /me/chat/history", mw.Chain(chatHandler.DeleteHistory, protectedMW...))
 
-	srv := &http.Server{
-		Addr:              ":" + config.GetConfigValue("PORT"),
+	server := &http.Server{
+		Addr:              ":" + os.Getenv("PORT"),
 		Handler:           mux,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second, // longer for AI responses
@@ -103,5 +98,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	server.Run(srv, ":"+config.GetConfigValue("PORT"), 15*time.Second)
+	srv.Run(server, os.Getenv("PORT"), 15*time.Second)
 }

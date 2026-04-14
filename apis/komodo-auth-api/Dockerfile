@@ -1,3 +1,5 @@
+# BUILD_TARGET selects which cmd entrypoint to compile.
+# Values: "public" (default, port 7011) | "private" (port 7012, shared network namespace)
 ARG BUILD_TARGET=public
 ARG DISTROLESS_TAG=debug
 

@@ -3,98 +3,332 @@ info:
   title: komodo-ssr-engine-svelte
   version: "0.1.0"
   description: |
-    Backend SSR engine. Pre-renders Svelte component trees for performance-critical and SEO pages,
-    caches them, and delivers HTML fragments to the ui shell for injection.
-
-    **Status:** Not yet implemented. Spec documents the planned contract.
+    SvelteKit-based SSR engine with API endpoints for services, orders, marketing, products, and content management.
+    Uses Bun runtime.
 servers:
   - url: http://localhost:7003
     description: Local dev
 
 tags:
   - name: Health
-  - name: Render
+  - name: Services
+  - name: Orders
+  - name: Marketing
+  - name: Products
+  - name: Landing
+  - name: Admin
 
 paths:
 
-  /health:
+  /api/health:
     get:
       tags: [Health]
-      summary: Liveness check
+      summary: Liveness check with S3 connectivity
       operationId: healthCheck
       security: []
       responses:
         "200":
           description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Service degraded (S3 unavailable)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
 
-  /render:
+  /api/v1/services/{id}:
+    get:
+      tags: [Services]
+      summary: Get service details
+      operationId: getService
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Service details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+
+  /api/v1/services/scheduling/{id}:
+    get:
+      tags: [Services]
+      summary: Get service scheduling details
+      operationId: getServiceScheduling
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Service scheduling details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceScheduling"
+
+  /api/v1/orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Get order details
+      operationId: getOrder
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /api/v1/marketing/user/{id}:
+    get:
+      tags: [Marketing]
+      summary: Get user marketing content
+      operationId: getUserMarketing
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User marketing content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserMarketing"
+
+  /api/v1/marketing/content/{id}:
+    get:
+      tags: [Marketing]
+      summary: Get marketing content by ID
+      operationId: getMarketingContent
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Marketing content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketingContent"
+
+  /api/v1/products/{id}:
+    get:
+      tags: [Products]
+      summary: Get product details
+      operationId: getProduct
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /api/v1/landing:
+    get:
+      tags: [Landing]
+      summary: Get landing page content
+      operationId: getLanding
+      security: []
+      responses:
+        "200":
+          description: Landing page content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LandingContent"
+
+  /api/v1/admin/manage/content/invalidate:
     post:
-      tags: [Render]
-      summary: Render a Svelte component tree to an HTML fragment
-      operationId: renderComponent
+      tags: [Admin]
+      summary: Invalidate cached content
+      operationId: invalidateContent
       security:
-        - ServiceJWT: []
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RenderRequest"
+              $ref: "#/components/schemas/InvalidateRequest"
       responses:
         "200":
-          description: Rendered HTML fragment
+          description: Content invalidated
+
+  /api/v1/admin/manage/content/upsert:
+    post:
+      tags: [Admin]
+      summary: Upsert content
+      operationId: upsertContent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertContentRequest"
+      responses:
+        "200":
+          description: Content upserted
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RenderResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          description: Component not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+                $ref: "#/components/schemas/Content"
 
 components:
   securitySchemes:
-    ServiceJWT:
+    bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Internal service JWT from komodo-auth-api
 
   schemas:
-    RenderRequest:
+    HealthResponse:
       type: object
-      required: [component]
+      required: [status, timestamp]
       properties:
-        component:
+        status:
           type: string
-          description: Component identifier (e.g. "product-detail", "category-listing")
-        props:
-          type: object
-          description: Props passed to the component at render time
-          additionalProperties: true
-        cache_ttl:
-          type: integer
-          description: Override cache TTL in seconds. 0 = no cache.
+          enum: [ok, degraded]
+        timestamp:
+          type: string
+          format: date-time
+        s3:
+          type: string
+          enum: [ok, error, unknown]
 
-    RenderResponse:
+    Service:
       type: object
-      required: [html, component, cached]
       properties:
-        html:
+        id:
           type: string
-          description: Pre-rendered HTML fragment
-        component:
+        name:
           type: string
-        cached:
-          type: boolean
-          description: Whether this response was served from cache
-        rendered_at:
+        description:
+          type: string
+
+    ServiceScheduling:
+      type: object
+      properties:
+        id:
+          type: string
+        available_slots:
+          type: array
+          items:
+            type: string
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        total:
+          type: number
+
+    UserMarketing:
+      type: object
+      properties:
+        user_id:
+          type: string
+        campaigns:
+          type: array
+          items:
+            type: string
+
+    MarketingContent:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+
+    LandingContent:
+      type: object
+      properties:
+        hero_title:
+          type: string
+        hero_subtitle:
+          type: string
+        featured_products:
+          type: array
+          items:
+            type: string
+
+    InvalidateRequest:
+      type: object
+      required: [content_ids]
+      properties:
+        content_ids:
+          type: array
+          items:
+            type: string
+
+    UpsertContentRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: object
+          additionalProperties: true
+
+    Content:
+      type: object
+      properties:
+        id:
+          type: string
+        updated_at:
           type: string
           format: date-time
 
@@ -123,7 +357,7 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
     Unauthorized:
-      description: Missing or invalid service JWT
+      description: Missing or invalid JWT
       content:
         application/problem+json:
           schema:

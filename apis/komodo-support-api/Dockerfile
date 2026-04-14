@@ -7,7 +7,7 @@ COPY komodo-support-api/go.mod komodo-support-api/go.sum ./
 RUN go mod download
 
 COPY komodo-support-api ./
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/komodo .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/komodo ./cmd/public
 
 FROM gcr.io/distroless/base-debian12
 COPY --from=build /bin/komodo /komodo

@@ -1,0 +1,209 @@
+openapi: "3.1.0"
+info:
+  title: komodo-insights-api
+  version: "0.1.0"
+  description: |
+    AI-powered product insights service. Generates summaries, sentiment analysis, and trending data.
+servers:
+  - url: http://localhost:7044
+    description: Local dev
+
+tags:
+  - name: Health
+  - name: Insights
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      operationId: healthCheck
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+
+  /insights/items/{itemId}/summary:
+    get:
+      tags: [Insights]
+      summary: Get AI-generated summary for an item
+      operationId: getItemSummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Item summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          description: LLM provider unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /insights/items/{itemId}/sentiment:
+    get:
+      tags: [Insights]
+      summary: Get sentiment analysis for an item
+      operationId: getItemSentiment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sentiment analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SentimentAnalysis"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          description: LLM provider unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /insights/trending:
+    get:
+      tags: [Insights]
+      summary: Get trending items
+      operationId: getTrending
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+      responses:
+        "200":
+          description: Trending items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrendingResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: LLM provider unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ItemSummary:
+      type: object
+      required: [item_id, summary, generated_at]
+      properties:
+        item_id:
+          type: string
+        summary:
+          type: string
+          description: AI-generated summary of the item
+        generated_at:
+          type: string
+          format: date-time
+
+    SentimentAnalysis:
+      type: object
+      required: [item_id, sentiment, score, generated_at]
+      properties:
+        item_id:
+          type: string
+        sentiment:
+          type: string
+          enum: [positive, neutral, negative]
+        score:
+          type: number
+          format: double
+          description: Sentiment score from -1.0 (negative) to 1.0 (positive)
+        generated_at:
+          type: string
+          format: date-time
+
+    TrendingItem:
+      type: object
+      required: [item_id, name, trend_score]
+      properties:
+        item_id:
+          type: string
+        name:
+          type: string
+        trend_score:
+          type: number
+          format: double
+          description: Trending score (higher = more trending)
+
+    TrendingResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendingItem"
+        total:
+          type: integer
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Item not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

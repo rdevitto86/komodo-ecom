@@ -1,0 +1,251 @@
+openapi: "3.1.0"
+info:
+  title: komodo-support-api
+  version: "0.1.0"
+  description: |
+    Customer support service with AI-powered chat. Supports both anonymous (cookie session) and authenticated (JWT) users.
+servers:
+  - url: http://localhost:7037
+    description: Local dev
+
+tags:
+  - name: Health
+  - name: Session
+  - name: Chat
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      operationId: healthCheck
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+
+  /chat/session:
+    post:
+      tags: [Session]
+      summary: Create a new chat session
+      operationId: createSession
+      security: []
+      responses:
+        "201":
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+    get:
+      tags: [Session]
+      summary: Get current chat session
+      operationId: getSession
+      security: []
+      responses:
+        "200":
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  /chat/message:
+    post:
+      tags: [Chat]
+      summary: Send a message to the AI support agent
+      operationId: sendMessage
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageRequest"
+      responses:
+        "200":
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /chat/history:
+    get:
+      tags: [Chat]
+      summary: Get chat history for current session
+      operationId: getHistory
+      security: []
+      responses:
+        "200":
+          description: Chat history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatHistory"
+    delete:
+      tags: [Chat]
+      summary: Delete chat history for current session
+      operationId: deleteHistory
+      security: []
+      responses:
+        "204":
+          description: History deleted
+
+  /chat/escalate:
+    post:
+      tags: [Chat]
+      summary: Escalate to human support
+      operationId: escalate
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EscalateRequest"
+      responses:
+        "200":
+          description: Escalation request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscalationResponse"
+
+  /me/chat/history:
+    get:
+      tags: [Chat]
+      summary: Get chat history for authenticated user
+      operationId: getAuthenticatedHistory
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User's chat history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatHistory"
+    delete:
+      tags: [Chat]
+      summary: Delete chat history for authenticated user
+      operationId: deleteAuthenticatedHistory
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: History deleted
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Session:
+      type: object
+      required: [session_id, created_at]
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          description: Present for authenticated sessions
+        created_at:
+          type: string
+          format: date-time
+
+    MessageRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    MessageResponse:
+      type: object
+      required: [message, role, timestamp]
+      properties:
+        message:
+          type: string
+        role:
+          type: string
+          enum: [assistant, user]
+        timestamp:
+          type: string
+          format: date-time
+
+    ChatMessage:
+      type: object
+      required: [message, role, timestamp]
+      properties:
+        message:
+          type: string
+        role:
+          type: string
+          enum: [assistant, user]
+        timestamp:
+          type: string
+          format: date-time
+
+    ChatHistory:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+
+    EscalateRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+        contact_info:
+          type: string
+
+    EscalationResponse:
+      type: object
+      required: [ticket_id, status]
+      properties:
+        ticket_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, assigned, resolved]
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

@@ -1,6 +1,6 @@
 module komodo-support-api
 
-go 1.26
+go 1.26.2
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.26.0

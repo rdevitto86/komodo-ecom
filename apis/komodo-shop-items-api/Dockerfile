@@ -7,7 +7,7 @@ COPY komodo-shop-items-api/go.mod komodo-shop-items-api/go.sum ./
 RUN go mod download
 
 COPY komodo-shop-items-api ./
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/komodo ./cmd/komodo-shop-items-api
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/komodo ./cmd/public
 
 FROM gcr.io/distroless/base-debian12
 COPY --from=build /bin/komodo /komodo

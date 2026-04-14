@@ -1,0 +1,30 @@
+openapi: "3.1.0"
+info:
+  title: komodo-loyalty-api
+  version: "0.1.0"
+  description: |
+    Loyalty program management service.
+servers:
+  - url: http://localhost:7033
+    description: Local dev
+
+tags:
+  - name: Health
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      operationId: healthCheck
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

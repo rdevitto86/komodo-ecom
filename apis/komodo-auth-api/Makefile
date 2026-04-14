@@ -61,8 +61,8 @@ build:
 		..
 	@docker build \
 		-f $(DOCKERFILE) \
-		-t $(APP_NAME)-internal:$(TAG) \
-		--build-arg BUILD_TARGET=internal \
+		-t $(APP_NAME)-private:$(TAG) \
+		--build-arg BUILD_TARGET=private \
 		--build-arg DISTROLESS_TAG=$(DISTROLESS_TAG) \
 		..
 

@@ -1,0 +1,365 @@
+openapi: "3.1.0"
+info:
+  title: komodo-shop-promotions-api
+  version: "1.0.0"
+  description: Promo code validation and automatic discount management. Public validate route supports guest checkout; admin routes require internal service JWT.
+servers:
+  - url: http://localhost:7045
+    description: Local dev
+
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: OK
+
+  /promotions/validate:
+    post:
+      summary: Validate a promo code against a cart
+      operationId: validatePromo
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValidatePromoRequest"
+      responses:
+        "200":
+          description: Promo is valid; returns discount details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromoValidation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Promo exists but cannot be applied (expired, cap hit, conditions not met)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /me/promotions:
+    get:
+      summary: List applicable automatic promotions for the authenticated user
+      operationId: listMyPromotions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cart_subtotal_cents
+          in: query
+          schema:
+            type: integer
+          description: Current cart subtotal for condition evaluation
+      responses:
+        "200":
+          description: Applicable promotions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromotionList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /internal/promotions:
+    get:
+      summary: List all promotions (admin)
+      operationId: listPromotions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/PromotionStatus"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Promotion list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromotionList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      summary: Create a promotion
+      operationId: createPromotion
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePromotionRequest"
+      responses:
+        "201":
+          description: Promotion created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Promotion"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /internal/promotions/{promoId}:
+    put:
+      summary: Update a promotion
+      operationId: updatePromotion
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PromoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePromotionRequest"
+      responses:
+        "200":
+          description: Promotion updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Promotion"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Deactivate a promotion
+      operationId: deactivatePromotion
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PromoId"
+      responses:
+        "204":
+          description: Promotion deactivated
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    PromoId:
+      name: promoId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    PromotionType:
+      type: string
+      enum: [percentage_off, fixed_amount_off, free_shipping, buy_x_get_y]
+
+    PromotionStatus:
+      type: string
+      enum: [active, inactive, expired]
+
+    PromotionConditions:
+      type: object
+      properties:
+        min_order_cents:
+          type: integer
+          description: Minimum cart subtotal required
+        eligible_skus:
+          type: array
+          items:
+            type: string
+          description: If set, promo only applies to these SKUs
+        eligible_categories:
+          type: array
+          items:
+            type: string
+          description: If set, promo only applies to items in these categories
+
+    Promotion:
+      type: object
+      required: [promo_id, code, type, discount_value, status, created_at, updated_at]
+      properties:
+        promo_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        type:
+          $ref: "#/components/schemas/PromotionType"
+        discount_value:
+          type: integer
+          description: Percentage (0–100) for percentage_off; cents for fixed_amount_off
+        conditions:
+          $ref: "#/components/schemas/PromotionConditions"
+        status:
+          $ref: "#/components/schemas/PromotionStatus"
+        description:
+          type: string
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+        max_redemptions:
+          type: integer
+        redemption_count:
+          type: integer
+        per_user_limit:
+          type: integer
+          default: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PromotionList:
+      type: object
+      required: [promotions]
+      properties:
+        promotions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Promotion"
+        next_cursor:
+          type: string
+
+    PromoValidation:
+      type: object
+      required: [promo_id, code, type, discount_cents, description]
+      properties:
+        promo_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        type:
+          $ref: "#/components/schemas/PromotionType"
+        discount_cents:
+          type: integer
+          description: Computed discount amount in cents for this cart
+        description:
+          type: string
+
+    ValidatePromoRequest:
+      type: object
+      required: [code, cart_subtotal_cents]
+      properties:
+        code:
+          type: string
+        cart_subtotal_cents:
+          type: integer
+        user_id:
+          type: string
+          description: Optional; enables per-user cap enforcement for guest-aware checkout
+
+    CreatePromotionRequest:
+      type: object
+      required: [code, type, discount_value]
+      properties:
+        code:
+          type: string
+        type:
+          $ref: "#/components/schemas/PromotionType"
+        discount_value:
+          type: integer
+        conditions:
+          $ref: "#/components/schemas/PromotionConditions"
+        description:
+          type: string
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+        max_redemptions:
+          type: integer
+        per_user_limit:
+          type: integer
+          default: 1
+
+    UpdatePromotionRequest:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/PromotionStatus"
+        discount_value:
+          type: integer
+        conditions:
+          $ref: "#/components/schemas/PromotionConditions"
+        description:
+          type: string
+        end_at:
+          type: string
+          format: date-time
+        max_redemptions:
+          type: integer
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Promotion not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

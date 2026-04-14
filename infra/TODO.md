@@ -163,7 +163,7 @@ Sections are ordered by dependency — local dev must work before AWS deploy mat
 - [ ] **[M]** Add CloudWatch alarms for ECS service CPU and memory utilization (alert at 80%)
 - [ ] **[M]** Add ALB 5xx error rate alarm per target group
 - [ ] **[M]** Add ALB target response time alarm (P99 > 2s)
-- [ ] **[M]** Add telemetry ingestion endpoint (Lambda or API Gateway) to receive device-type and failure reports from UI — forward to CloudWatch Logs or a time-series store
+- [x] ~~Add telemetry ingestion endpoint (Lambda or API Gateway)~~ — V1 strategy: all services write structured JSON logs to their own CloudWatch stream via `slog`. UI client logs route through the SvelteKit BFF `/api/log` route (no separate Lambda needed). Data lake is a future concern.
 - [ ] **[L]** Create a CloudWatch dashboard for the core purchase flow: auth → cart → checkout → order
 - [ ] **[L]** Add CloudWatch Synthetics canary for `/health` checks on all public services
 - [ ] **[L]** Set up CloudWatch log metric filters to alert on `"level":"error"` in structured logs

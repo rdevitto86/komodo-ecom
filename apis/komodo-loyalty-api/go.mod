@@ -1,3 +1,3 @@
 module komodo-loyalty-api
 
-go 1.26
+go 1.26.2

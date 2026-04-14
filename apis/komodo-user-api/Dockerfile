@@ -1,5 +1,5 @@
 # BUILD_TARGET selects which cmd entrypoint to compile.
-# Values: "public" (default, port 7051) | "internal" (port 7052)
+# Values: "public" (default, port 7051) | "private" (port 7052, shared network namespace)
 ARG BUILD_TARGET=public
 
 # debug tag includes busybox (wget) for local healthchecks.

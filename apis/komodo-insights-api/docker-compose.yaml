@@ -1,0 +1,38 @@
+name: komodo-insights-api
+
+services:
+  insights-api:
+    image: komodo-insights-api:${VERSION:-dev}
+    build:
+      context: ..
+      dockerfile: komodo-insights-api/Dockerfile
+      args:
+        BUILD_TARGET: public
+        DISTROLESS_TAG: ${DISTROLESS_TAG:-debug}
+    restart: ${RESTART_POLICY:-no}
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_LIMIT:-512M}
+    env_file:
+      - ../../infra/local/env.shared
+    environment:
+      APP_NAME: komodo-insights-api
+      PORT: :7111
+      VERSION: ${VERSION:-dev}
+    ports:
+      - "7111:7111"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7111/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - komodo-network
+
+networks:
+  komodo-network:
+    external: true

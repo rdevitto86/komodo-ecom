@@ -38,18 +38,19 @@ services:
   # Shares the public container's network namespace
   # Accessible to other services on komodo-network as user-api-public:7052.
   # On Fargate, both containers run in the same task and share the task network interface.
-  user-api-internal:
-    image: komodo-user-api-internal:${VERSION:-dev}
+  user-api-private:
+    image: komodo-user-api-private:${VERSION:-dev}
     build:
       context: ..
       dockerfile: komodo-user-api/Dockerfile
       args:
-        BUILD_TARGET: internal
+        BUILD_TARGET: private
         DISTROLESS_TAG: ${DISTROLESS_TAG:-debug}
     network_mode: "service:user-api-public"
     depends_on:
       user-api-public:
         condition: service_healthy
+
     restart: ${RESTART_POLICY:-no}
     deploy:
       resources:

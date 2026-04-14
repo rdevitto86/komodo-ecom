@@ -36,13 +36,13 @@ services:
     networks:
       - komodo-network
 
-  auth-api-internal:
-    image: komodo-auth-api-internal:${VERSION:-dev}
+  auth-api-private:
+    image: komodo-auth-api-private:${VERSION:-dev}
     build:
       context: ..
       dockerfile: komodo-auth-api/Dockerfile
       args:
-        BUILD_TARGET: internal
+        BUILD_TARGET: private
         DISTROLESS_TAG: ${DISTROLESS_TAG:-debug}
     restart: ${RESTART_POLICY:-no}
     deploy:
@@ -61,6 +61,7 @@ services:
     # Shares the public container's network namespace — both ports are on one
     # Fargate task / local Docker bridge without a second NIC or VIP.
     network_mode: "service:auth-api-public"
+
 
 networks:
   komodo-network:

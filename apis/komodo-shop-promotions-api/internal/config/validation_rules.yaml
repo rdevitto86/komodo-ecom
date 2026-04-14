@@ -1,0 +1,110 @@
+#  ____        _        ____             __ _
+# |  _ \ _   _| | ___  / ___|___  _ __  / _(_) __ _
+# | |_) | | | | |/ _ \| |   / _ \| '_ \| |_| |/ _` |
+# |  _ <| |_| | |  __/| |__| (_) | | | |  _| | (_| |
+# |_| \_\\__,_|_|\___| \____\___/|_| |_|_| |_|\__, |
+#                                               |___/
+#
+# Validation Levels:
+#   ignore  — skip all validation (health checks, public probes)
+#   lenient — validate declared constraints; missing API version is allowed
+#   strict  — version header required; all declared constraints enforced
+#
+# Routes without a version prefix use "lenient".
+# Upgrade individual routes to "strict" once API versioning is introduced.
+#
+
+rules:
+
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  "/health":
+    GET:
+      level: "ignore"
+
+  # ---------------------------------------------------------------------------
+  # Public — /promotions (no auth required for guest checkout support)
+  # ---------------------------------------------------------------------------
+  "/promotions/validate":
+    POST:
+      level: "lenient"
+      headers:
+        Content-Type:
+          required: true
+          value: "application/json"
+      body:
+        code:
+          type: "string"
+          required: true
+        cart_subtotal_cents:
+          type: "integer"
+          required: true
+
+  # ---------------------------------------------------------------------------
+  # User — /me/promotions (JWT required)
+  # ---------------------------------------------------------------------------
+  "/me/promotions":
+    GET:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+
+  # ---------------------------------------------------------------------------
+  # Internal — /internal/promotions (internal JWT required)
+  # ---------------------------------------------------------------------------
+  "/internal/promotions":
+    GET:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+
+    POST:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+        Content-Type:
+          required: true
+          value: "application/json"
+      body:
+        code:
+          type: "string"
+          required: true
+        type:
+          type: "string"
+          required: true
+        discount_value:
+          type: "integer"
+          required: true
+
+  "/internal/promotions/{promoId}":
+    PUT:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+        Content-Type:
+          required: true
+          value: "application/json"
+      params:
+        promoId:
+          type: "string"
+          required: true
+
+    DELETE:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+      params:
+        promoId:
+          type: "string"
+          required: true

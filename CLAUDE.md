@@ -7,33 +7,52 @@ E-commerce platform for a real business. Architecture decisions prioritize corre
 
 ## Agent Model
 
-The main chat session is the **orchestrator** (architect role by default). Specialized work is delegated to named agent sessions — either spawned inline by the orchestrator or run manually in dedicated terminal windows.
+The main chat session is the **orchestrator** (architect role by default). Specialized work is delegated to named agents — spawned inline via the `Agent` tool or run in dedicated terminal windows.
 
-**Three layers:**
+Agent definitions live in `~/.claude/agents/` (symlinked from `komodo-claude-core`). The orchestrator routes to them by name.
 
-| Layer | How | Role |
-|-------|-----|------|
-| Orchestrator | Main chat | Plans, coordinates, delegates — does not implement |
-| Inline agents | `Agent` tool | Short-lived subagents for contained tasks within the same session |
-| Terminal agents | Dedicated `claude` session per agent type | Long-running or parallel work with focused context |
+### Claude subagents
 
-**Terminal agent sessions** are per-role, not per-service. A single SWE session handles all Go work; a single DevOps session handles all infra. Each session loads only the context relevant to its current task.
+| Agent | Model | Role |
+|-------|-------|------|
+| `architect` | opus | Cross-business domain strategy — software is the primary lens, but covers product, commercial, ops, org, and legal at a strategic level |
+| `swe` | sonnet | Senior/tech lead level — implementation, code review, debugging, refactoring, CI/CD, security, performance. Decomposes multi-file test tasks by spawning `swe-test` agents in parallel |
+| `swe-test` | sonnet | Focused test writer scoped to a single file or component. Spawned by `swe` for parallel test swarming — do not call directly for multi-file suites |
+| `devops` | sonnet | CI/CD, infrastructure, deployments, monitoring, incident response |
 
-```
-Main chat (orchestrator)
-  ├── Agent tool → inline subagent (fast, same context window)
-  ├── RemoteTrigger → named terminal session (background, parallel)
-  └── OpenClaw MCP → background tasks, cron, cross-session memory
-                      (TODO: configure in .claude/settings.json)
+**Model tiers:** `haiku` — simple/lookup tasks · `sonnet` — complex technical work (default) · `opus` — highest reasoning demand (architecture)
 
-Terminal sessions (spin up manually or via orchestrator):
-  claude --agent swe          # all implementation work
-  claude --agent devops       # all infra / deploy work
-  claude --agent qa           # all testing / review work
-  claude --agent architect    # deep design sessions
-```
+### Local MCP agents
 
-Agent definitions live in `.claude/agents/`. The orchestrator routes to them by name.
+Run on Qwen3 via the komodo bridge (`~/.komodo/bridge`). Invoked as MCP tools — run fully outside Claude's context window.
+
+| Agent | MCP tool | Role |
+|-------|----------|------|
+| `pm` | `analyze_specs` | Task breakdown, sprint planning, delivery risk, stakeholder communication |
+| `qa` | `generate_test_cases` | Test planning, QA review, bug triage, release gates |
+
+## Skills
+
+User-invocable slash commands defined in `~/.claude/skills/`. Key ones for this project:
+
+| Skill | When to use |
+|-------|-------------|
+| `/feature-workflow` | Multi-phase: architect designs → user approves → parallel implementation dispatch |
+| `/dispatch` | Route a task to multiple domain agents in parallel with isolated context windows |
+| `/git-flow` | Branch naming, commit conventions, PR process |
+| `/new-service` | Scaffold a Go microservice |
+| `/new-page` | Scaffold a SvelteKit 5 page |
+| `/new-component` | Scaffold a Svelte 5 component |
+
+## Hooks
+
+Auto-run shell scripts registered in `~/.claude/settings.json`:
+
+| Hook | Trigger | What it does |
+|------|---------|--------------|
+| `post-edit-lint.sh` | After Edit or Write | Runs `golangci-lint` (Go) or `tsc --noEmit` (TS/Svelte) |
+| `stop-summary.sh` | Session end | Shows git diff summary if uncommitted changes exist |
+| `post-pr-trello.sh` | After `gh pr create` | Surfaces PR URL and Trello card reminder |
 
 ---
 
@@ -123,6 +142,55 @@ Three `TODO.md` files serve as the project's living backlog. Check the relevant 
 
 ---
 
+## Service Entrypoint Convention
+
+Every service uses a `cmd/` directory to separate binary entrypoints by audience. The Go convention for `internal/` packages (restricted import visibility) is intentionally avoided — `private` is used instead.
+
+| Directory | Audience | Middleware stack |
+|-----------|----------|-----------------|
+| `cmd/public/` | Browser / customer-facing | RequestID, Telemetry, RateLimiter, CORS, SecurityHeaders, Auth, CSRF, Normalization, Sanitization |
+| `cmd/private/` | Service-to-service only | RequestID, Telemetry, Auth, Scope |
+
+**Rules:**
+- Use only `cmd/public/` if the service is exclusively customer-facing (e.g. cart-api, support-api).
+- Use only `cmd/private/` if the service is exclusively called by other services (e.g. event-bus-api, communications-api).
+- Use both when the service has both audiences (e.g. auth-api, user-api, entitlements-api).
+- Do **not** use a flat `main.go` at the service root — this was the old pattern and has been fully migrated.
+- Do **not** name any entrypoint directory `internal` — Go reserves that name for import visibility enforcement.
+
+**Compute mapping:**
+- EC2 / Fargate services → `cmd/public/` and/or `cmd/private/`; Dockerfile uses `ARG BUILD_TARGET=public`
+- Lambda services → same `cmd/` convention; each binary maps to a Lambda function
+- Rust services → `src/bin/public.rs` and/or `src/bin/private.rs`; Cargo.toml declares `[[bin]]` entries
+
+**Current service classification:**
+
+| Service | Entrypoint(s) |
+|---------|--------------|
+| auth-api | public + private |
+| user-api | public + private |
+| order-api | public + private |
+| entitlements-api | public + private |
+| shop-promotions-api | public + private |
+| cart-api | public only |
+| shop-items-api | public only |
+| support-api | public only |
+| address-api | public only |
+| search-api | public only |
+| reviews-api | public only |
+| loyalty-api | public only |
+| order-reservations-api | public only |
+| order-returns-api | public only |
+| features-api | public only |
+| user-wishlist-api | public only |
+| insights-api | public only |
+| event-bus-api | private only (+ cdc Lambda) |
+| communications-api | private only |
+| payments-api (Rust) | public + private |
+| shop-inventory-api (Rust) | private only |
+
+---
+
 ## Service File Standard
 Every service should maintain this structure. JUNIOR mode uses it as its primary context source.
 
@@ -197,11 +265,11 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 | Range | Domain | Assigned | Reserved |
 |-------|--------|----------|---------|
 | 7001–7010 | Frontend & Infrastructure | 7001 `ui`, 7002 `event-bus-api`, 7003 `ssr-engine-svelte` | 7004–7010 |
-| 7011–7020 | Identity & Security | 7011 `auth-api` pub, 7012 `auth-api` int | 7013–7020 |
+| 7011–7020 | Identity & Security | 7011 `auth-api` pub, 7012 `auth-api` priv | 7013–7020 |
 | 7021–7030 | Core Platform | 7021 `entitlements-api`, 7022 `features-api` | 7023–7030 |
 | 7031–7040 | Address & Geo | 7031 `address-api` | 7032–7040 |
-| 7041–7050 | Commerce & Catalog | 7041 `shop-items-api`, 7042 `search-api`, 7043 `cart-api`, 7044 `shop-inventory-api` | 7045–7050 |
-| 7051–7060 | User & Profile | 7051 `user-api` pub, 7052 `user-api` int | 7053–7060 |
+| 7041–7050 | Commerce & Catalog | 7041 `shop-items-api`, 7042 `search-api`, 7043 `cart-api`, 7044 `shop-inventory-api`, 7045 `shop-promotions-api` | 7046–7050 |
+| 7051–7060 | User & Profile | 7051 `user-api` pub, 7052 `user-api` priv, 7053 `user-wishlist-api` | 7054–7060 |
 | 7061–7070 | Orders | 7061 `order-api`, 7062 `order-returns-api`, 7063 `order-reservations-api` | 7064–7070 |
 | 7071–7080 | Payments | 7071 `payments-api` | 7072–7080 |
 | 7081–7090 | Communications | 7081 `communications-api` | 7082–7090 |

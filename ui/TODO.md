@@ -197,11 +197,11 @@ Sections are ordered by dependency — auth must come before cart, cart before c
 ---
 
 ## Analytics & Telemetry
-> No client-side event tracking exists. Required for understanding user behaviour and diagnosing failures.
+> V1 strategy: structured logs land in CloudWatch per service. No separate analytics API or ingestion Lambda. Data lake is a future concern.
+> Client-side logging uses `komodo-forge-sdk-ts` `logger` — single worker thread (Web Worker in browser, node-worker on Fargate, fetch on Lambda). All four channels (runtime, clickstream, interaction, telemetry) route through one handler. Browser channels are no-ops until `addListener` is called, keeping the main thread free.
 
-- [ ] **[M]** Implement clickstream tracking — capture UI element interactions (clicks, navigation, meta) and batch-send to analytics endpoint
-- [ ] **[M]** Implement client-side telemetry — collect device type on page load; report failures (unhandled errors, API timeouts) to telemetry endpoint; nothing beyond device + failures
-- [ ] **[M]** Wire interaction events to backend (cart add, order start, order abandoned) — fire to event-bus-api on user actions
+- [ ] **[M]** Wire `logger` from `komodo-forge-sdk-ts` in UI — call `logger.init(...)` in root `+layout.ts`; register `addListener.runtime` pointing at `/api/log` BFF route; defer clickstream/interaction/telemetry listeners until backend is live
+- [ ] **[M]** Implement `/api/log` BFF route — receives log events from the SDK's worker, writes a structured `slog`-compatible JSON line server-side so they land in the SvelteKit CloudWatch stream; Node backend can log freely, browser traffic is batched by the worker before hitting this route
 
 ---
 

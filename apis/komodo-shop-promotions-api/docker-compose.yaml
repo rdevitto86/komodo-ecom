@@ -1,0 +1,38 @@
+name: komodo-shop-promotions-api
+
+services:
+  shop-promotions-api:
+    image: komodo-shop-promotions-api:${VERSION:-dev}
+    build:
+      context: ..
+      dockerfile: komodo-shop-promotions-api/Dockerfile
+      args:
+        DISTROLESS_TAG: ${DISTROLESS_TAG:-debug}
+    restart: ${RESTART_POLICY:-no}
+    deploy:
+      resources:
+        limits:
+          memory: ${MEM_LIMIT:-256M}
+    env_file:
+      - ../../infra/local/env.shared
+    environment:
+      APP_NAME: komodo-shop-promotions-api
+      PORT: :7045
+      VERSION: ${VERSION:-dev}
+      EVAL_RULES_PATH: /app/config/validation_rules.yaml
+    ports:
+      - "7045:7045"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:7045/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - komodo-network
+
+networks:
+  komodo-network:
+    external: true

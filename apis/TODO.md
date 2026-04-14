@@ -288,3 +288,15 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 
 - [ ] **[M]** Extract HTTP client base into `http/client` — `pkg/v1/client/client.go` in auth-api, user-api, and cart-api all implement the same `post()`/`get()` helpers (context, JSON marshal, bearer token, RFC 7807 error unwrap). Every service that calls another service will need this. Move to SDK so services only define their own endpoint methods.
 - [ ] **[L]** Add health handler to `http/handlers` — 5+ services (`user-api`, `cart-api`, `shop-inventory-api`, `reviews-api`, `features-api`) implement an identical `{"status":"OK"}` health endpoint. Move to SDK as a one-liner registration.
+- [ ] **[M]** **Enterprise Pattern: Circuit Breaker** — Extract circuit breaker to `resilience/circuitbreaker` in SDK. APIs with external service dependencies need circuit breaker protection when DB or downstream services are down:
+  - **komodo-auth-api**: ElastiCache token revocation checks (`oauth_token_handler.go:173`)
+  - **komodo-cart-api**: `shop-items-api` calls (product snapshots), `inventory-api` calls (stock holds)
+  - **komodo-support-api**: Anthropic Haiku LLM calls (`anthropic.go:39`)
+  - **komodo-address-api**: External address validation provider (SmartyStreets/Google) — currently stubs (`address.go:50,59,77`)
+  - **komodo-search-api**: Typesense search queries
+  - **komodo-communications-api**: SendGrid/SES email, Twilio/SNS SMS (future providers)
+  - **komodo-shipping-api**: Carrier aggregator API (EasyPost/ShipStation)
+  - **komodo-payments-api-rust**: Stripe API calls (`payment_intents`, `refunds`)
+  - **komodo-event-bus-api**: SNS publish calls (CDC Lambda and relay publisher)
+  - **Cross-service calls**: cart-api ↔ inventory-api, order-api ↔ payments-api, order-api ↔ shipping-api, returns-api ↔ payments-api/inventory-api
+  - **Pattern requirements**: Configurable failure threshold, half-open state probe, exponential backoff, fallback to degraded mode (cache-only, async queue, or fail-fast with clear error codes)

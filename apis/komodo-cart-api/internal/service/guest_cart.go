@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
-	"komodo-cart-api/internal/repo"
-	"komodo-cart-api/pkg/v1/client"
+	shopitems "komodo-cart-api/internal/adapters/shopitems/v1"
 	"komodo-cart-api/internal/models"
+	"komodo-cart-api/internal/repo"
 )
 
 // errForbidden is a package-level sentinel for session mismatch that satisfies error.
@@ -23,11 +23,11 @@ var errForbidden = models.CartError{Code: httpErr.ErrorCode{
 // GuestCartService manages unauthenticated guest carts stored in Redis.
 type GuestCartService struct {
 	guestTTL  int64
-	shopItems *client.ShopItemsClient
+	shopItems *shopitems.Client
 }
 
 // NewGuestCartService constructs a GuestCartService.
-func NewGuestCartService(ttl int64, shopItems *client.ShopItemsClient) *GuestCartService {
+func NewGuestCartService(ttl int64, shopItems *shopitems.Client) *GuestCartService {
 	return &GuestCartService{guestTTL: ttl, shopItems: shopItems}
 }
 

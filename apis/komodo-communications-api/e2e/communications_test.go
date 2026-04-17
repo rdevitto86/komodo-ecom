@@ -11,7 +11,7 @@ import (
 // TODO: remove the t.Skip once handlers are scaffolded and the service is running.
 func TestHealth(t *testing.T) {
 	t.Skip("service not yet implemented — scaffold routes before enabling e2e tests")
-	resp := get(t, "/health", nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusOK)
+	res := get(t, "/health", nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusOK)
 }

@@ -124,7 +124,7 @@ DynamoDB Streams on this table drive automatic hold release (TTL expiry events) 
 
 ### Run
 ```bash
-cd apis/komodo-shop-inventory-api-rust
+cd apis/komodo-shop-inventory-api
 source .env.local
 cargo run
 ```

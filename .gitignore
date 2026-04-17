@@ -73,6 +73,7 @@ yarn-error.log*
 *.sublime-project
 *.sublime-workspace
 .windsurfrules
+/.windsurf/
 
 # AI / MCP
 .mcp.json

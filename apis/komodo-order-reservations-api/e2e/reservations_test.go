@@ -8,40 +8,40 @@ import (
 )
 
 func TestHealth(t *testing.T) {
-	resp := get(t, "/health", nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusOK)
+	res := get(t, "/health", nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusOK)
 }
 
 // TestGetSlots_ReturnsAvailability fetches all available slots.
 // Returns 501 if DynamoDB repo stubs are not yet wired.
 func TestGetSlots_ReturnsAvailability(t *testing.T) {
-	resp := get(t, "/slots", nil)
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotImplemented {
+	res := get(t, "/slots", nil)
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotImplemented {
 		t.Skip("repo stubs not wired — implement DynamoDB GetSlots to enable this test")
 	}
-	checkStatus(t, resp, http.StatusOK)
+	checkStatus(t, res, http.StatusOK)
 }
 
 // TestGetSlotsByDate_ValidDate fetches slots for a specific date.
 func TestGetSlotsByDate_ValidDate(t *testing.T) {
-	resp := get(t, "/slots/2026-09-01", nil)
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotImplemented {
+	res := get(t, "/slots/2026-09-01", nil)
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotImplemented {
 		t.Skip("repo stubs not wired — implement DynamoDB GetSlots to enable this test")
 	}
-	checkStatus(t, resp, http.StatusOK)
+	checkStatus(t, res, http.StatusOK)
 }
 
 // TestGetSlotsByDate_InvalidFormat verifies malformed dates return 400.
 func TestGetSlotsByDate_InvalidFormat(t *testing.T) {
-	resp := get(t, "/slots/not-a-date", nil)
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotImplemented {
+	res := get(t, "/slots/not-a-date", nil)
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotImplemented {
 		t.Skip("repo stubs not wired")
 	}
-	checkStatus(t, resp, http.StatusBadRequest)
+	checkStatus(t, res, http.StatusBadRequest)
 }
 
 // TestCreateBooking_NoAuth verifies booking creation requires a JWT.
@@ -50,9 +50,9 @@ func TestCreateBooking_NoAuth(t *testing.T) {
 		"slot_id":      "slot-e2e-001",
 		"service_type": "standard",
 	}
-	resp := post(t, "/bookings", body, nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusUnauthorized)
+	res := post(t, "/bookings", body, nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusUnauthorized)
 }
 
 // TestBooking_FullFlow creates → reads → confirms → cancels a booking.
@@ -100,10 +100,10 @@ func TestBooking_FullFlow(t *testing.T) {
 // TestGetBooking_NotFound verifies 404 for a non-existent booking ID.
 func TestGetBooking_NotFound(t *testing.T) {
 	h := authHeader(t)
-	resp := get(t, "/bookings/booking-does-not-exist", h)
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotImplemented {
+	res := get(t, "/bookings/booking-does-not-exist", h)
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotImplemented {
 		t.Skip("repo stubs not wired")
 	}
-	checkStatus(t, resp, http.StatusNotFound)
+	checkStatus(t, res, http.StatusNotFound)
 }

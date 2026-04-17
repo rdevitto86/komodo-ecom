@@ -39,6 +39,7 @@ Sections are ordered by dependency — auth must come before cart, cart before c
 - [ ] **[M]** Display certification badges on product/service detail pages — render from `ShopItem` data
 - [ ] **[M]** Display top 6 key features per product/service — structured feature highlight section on detail page
 - [ ] **[M]** Display recommended products/tools — wire to `komodo-shop-items-api` `GET /suggestions` on detail + cart pages
+- [ ] **[M]** Display real-time ecom stats on product detail pages — wire to `komodo-statistics-api` public endpoints via BFF: show "X users have this in cart" (`GET /stats/items/{itemId}/in-cart`), "Y people bought this recently" (`GET /stats/items/{itemId}/recently-bought`), and "frequently bought with" pairings (`GET /stats/items/{itemId}/frequently-bought-with`); implement `GET /api/shop/stats/[itemId]` BFF route; display as social-proof callouts on the product page
 
 ---
 
@@ -82,6 +83,7 @@ Sections are ordered by dependency — auth must come before cart, cart before c
 - [ ] **[M]** Implement `PaymentProcessors.svelte` — credit card form (Stripe Elements or equivalent)
 - [ ] **[M]** Add payment plan option to checkout — display available installment plans at payment step; call `POST /api/payments/plans` via BFF after order is placed if user selects a plan
 - [ ] **[M]** Build `/profile/payments/plans` page — list active payment plans with installment schedule, next due date, remaining balance, and status badge
+- [ ] **[M]** Add sliding swipe-to-confirm submit button on order placement — draggable slider component that must be fully dragged to trigger order submission; prevents accidental orders; implement as `SlideToConfirm.svelte` in `src/lib/components/`
 
 ---
 
@@ -211,6 +213,13 @@ Sections are ordered by dependency — auth must come before cart, cart before c
 - [ ] **[M]** Build chat widget — send/receive messages against `komodo-support-api` `/chat/messages`; guest and authenticated modes
 - [ ] **[M]** Display full chat session history — fetch prior messages on widget open; paginate if session is long
 - [ ] **[L]** Wire escalation CTA in chat widget — call `/chat/escalate` and confirm ticket creation to user
+
+---
+
+## Founders Page
+> Static brand page — no backend dependency.
+
+- [ ] **[L]** Build `/founders` page — static page with brand story, founder bios, and company background; no server load function needed; content can be hardcoded initially and moved to a CMS later
 
 ---
 

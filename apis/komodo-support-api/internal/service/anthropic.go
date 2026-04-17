@@ -36,7 +36,7 @@ func (p *AnthropicProvider) Complete(ctx context.Context, systemPrompt string, h
 		}
 	}
 
-	resp, err := p.client.Messages.New(ctx, anthropic.MessageNewParams{
+	res, err := p.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     p.model,
 		MaxTokens: p.maxTokens,
 		System: []anthropic.TextBlockParam{
@@ -49,7 +49,7 @@ func (p *AnthropicProvider) Complete(ctx context.Context, systemPrompt string, h
 	}
 
 	var parts []string
-	for _, block := range resp.Content {
+	for _, block := range res.Content {
 		switch b := block.AsAny().(type) {
 		case anthropic.TextBlock:
 			parts = append(parts, b.Text)

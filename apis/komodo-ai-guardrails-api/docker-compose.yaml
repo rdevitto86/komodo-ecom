@@ -1,0 +1,30 @@
+services:
+  komodo-ai-guardrails-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: komodo-ai-guardrails-api:local
+    container_name: komodo-ai-guardrails-api
+    ports:
+      - "7113:7113"
+    environment:
+      PORT: "${PORT:-7113}"
+      GUARDRAILS_PROVIDER: "${GUARDRAILS_PROVIDER:-local}"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-llama-guard3}"
+      AWS_REGION: "${AWS_REGION:-us-east-1}"
+      AWS_ENDPOINT_URL: "${AWS_ENDPOINT_URL:-}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7113/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - komodo-network
+
+networks:
+  komodo-network:
+    external: true

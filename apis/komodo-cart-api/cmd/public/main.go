@@ -6,13 +6,14 @@ import (
 	"strconv"
 	"time"
 
+	shopinventory "komodo-cart-api/internal/adapters/shopinventory/v1"
+	shopitems "komodo-cart-api/internal/adapters/shopitems/v1"
 	"komodo-cart-api/internal/handlers"
 	"komodo-cart-api/internal/service"
-	"komodo-cart-api/pkg/v1/client"
 
-	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamodb"
+	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamo"
 	"github.com/rdevitto86/komodo-forge-sdk-go/aws/elasticache"
-	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
+	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secretsmanager"
 	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
@@ -64,13 +65,13 @@ func init() {
 		os.Exit(1)
 	}
 
-	ddbCfg := dynamodb.Config{
+	ddbCfg := dynamo.Config{
 		Region:    os.Getenv("AWS_REGION"),
 		Endpoint:  os.Getenv("DYNAMODB_ENDPOINT"),
 		AccessKey: os.Getenv("DYNAMODB_ACCESS_KEY"),
 		SecretKey: os.Getenv("DYNAMODB_SECRET_KEY"),
 	}
-	if err := dynamodb.Init(ddbCfg); err != nil {
+	if err := dynamo.Init(ddbCfg); err != nil {
 		logger.Fatal("failed to initialize dynamodb", err)
 		os.Exit(1)
 	}
@@ -99,8 +100,8 @@ func main() {
 	// Wire services.
 	guestTTL := mustParseInt64(os.Getenv("CART_GUEST_TTL_SEC"), 604800)
 	holdTTL  := mustParseInt64(os.Getenv("CART_HOLD_TTL_SEC"), 900)
-	shopCli  := client.NewShopItemsClient(os.Getenv("SHOP_ITEMS_API_URL"))
-	invCli   := client.NewInventoryClient(os.Getenv("INVENTORY_API_URL"))
+	shopCli  := shopitems.NewClient(os.Getenv("SHOP_ITEMS_API_URL"))
+	invCli   := shopinventory.NewClient(os.Getenv("INVENTORY_API_URL"))
 	guestSvc := service.NewGuestCartService(guestTTL, shopCli)
 	cartSvc  := service.NewCartService(holdTTL, shopCli, invCli, guestSvc)
 

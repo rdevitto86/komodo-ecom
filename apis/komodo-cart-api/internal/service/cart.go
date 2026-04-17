@@ -8,9 +8,10 @@ import (
 	"os"
 	"time"
 
+	shopinventory "komodo-cart-api/internal/adapters/shopinventory/v1"
+	shopitems "komodo-cart-api/internal/adapters/shopitems/v1"
 	"komodo-cart-api/internal/models"
 	"komodo-cart-api/internal/repo"
-	"komodo-cart-api/pkg/v1/client"
 
 	"github.com/google/uuid"
 	"github.com/rdevitto86/komodo-forge-sdk-go/aws/elasticache"
@@ -36,13 +37,13 @@ var (
 // CartService manages authenticated user carts stored in DynamoDB.
 type CartService struct {
 	holdTTL   int64
-	shopItems *client.ShopItemsClient
-	inventory *client.InventoryClient
+	shopItems *shopitems.Client
+	inventory *shopinventory.Client
 	guestSvc  *GuestCartService
 }
 
 // NewCartService constructs a CartService.
-func NewCartService(holdTTL int64, shopItems *client.ShopItemsClient, inv *client.InventoryClient, guest *GuestCartService) *CartService {
+func NewCartService(holdTTL int64, shopItems *shopitems.Client, inv *shopinventory.Client, guest *GuestCartService) *CartService {
 	return &CartService{
 		holdTTL:   holdTTL,
 		shopItems: shopItems,
@@ -222,8 +223,8 @@ func (s *CartService) Checkout(ctx context.Context, userID string) (*models.Chec
 	for _, item := range cart.Items {
 		holdID, holdExpiry, err := s.inventory.PlaceHold(ctx, item.SKU, cart.ID, item.Quantity)
 		if err != nil {
-			var holdErr *client.HoldError
-			if he, ok := err.(*client.HoldError); ok && he.StatusCode == 409 {
+			var holdErr *shopinventory.HoldError
+			if he, ok := err.(*shopinventory.HoldError); ok && he.StatusCode == 409 {
 				holdErr = he
 				_ = holdErr
 				conflictSKUs = append(conflictSKUs, item.SKU)

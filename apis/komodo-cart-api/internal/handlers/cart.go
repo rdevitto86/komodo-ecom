@@ -5,10 +5,11 @@ import (
 	"errors"
 	"net/http"
 
+	"komodo-cart-api/internal/models"
+	"komodo-cart-api/internal/service"
+
 	ctxKeys "github.com/rdevitto86/komodo-forge-sdk-go/http/context"
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
-	"komodo-cart-api/internal/service"
-	"komodo-cart-api/internal/models"
 )
 
 // GetMyCart returns the authenticated user's cart.
@@ -181,7 +182,7 @@ func InitiateCheckout(svc *service.CartService) http.HandlerFunc {
 			return
 		}
 
-		resp, err := svc.Checkout(req.Context(), userID)
+		res, err := svc.Checkout(req.Context(), userID)
 		if err != nil {
 			sendCartError(wtr, req, err)
 			return
@@ -189,7 +190,7 @@ func InitiateCheckout(svc *service.CartService) http.HandlerFunc {
 
 		wtr.Header().Set("Content-Type", "application/json")
 		wtr.WriteHeader(http.StatusOK)
-		json.NewEncoder(wtr).Encode(resp)
+		json.NewEncoder(wtr).Encode(res)
 	}
 }
 

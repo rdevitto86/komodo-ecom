@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	ddbTypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
-	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamodb"
+	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamo"
 )
 
 // table is resolved once at package init from config (set by secrets-manager bootstrap).
@@ -51,7 +51,7 @@ func cartIDFor(userID string) string {
 // GetCart fetches all rows for the user's cart and assembles the Cart model.
 // Returns an empty Cart (not nil) with zero items if no rows exist.
 func GetCart(ctx context.Context, userID string) (*models.Cart, error) {
-	rows, err := dynamodb.QueryAll(ctx, dynamodb.QueryInput{
+	rows, err := dynamo.QueryAll(ctx, dynamo.QueryInput{
 		TableName:              table,
 		KeyConditionExpression: "PK = :pk",
 		ExpressionValues: map[string]ddbTypes.AttributeValue{
@@ -127,7 +127,7 @@ func PutCartItem(ctx context.Context, userID string, item models.CartItem) error
 		ImageURL:       item.ImageURL,
 		UpdatedAt:      now,
 	}
-	if err := dynamodb.WriteItemFrom(ctx, table, rec, false, nil, nil); err != nil {
+	if err := dynamo.WriteItemFrom(ctx, table, rec, false, nil, nil); err != nil {
 		return fmt.Errorf("repo.PutCartItem: write item: %w", err)
 	}
 
@@ -137,7 +137,7 @@ func PutCartItem(ctx context.Context, userID string, item models.CartItem) error
 		UserID:    userID,
 		UpdatedAt: now,
 	}
-	if err := dynamodb.WriteItemFrom(ctx, table, meta, false, nil, nil); err != nil {
+	if err := dynamo.WriteItemFrom(ctx, table, meta, false, nil, nil); err != nil {
 		return fmt.Errorf("repo.PutCartItem: write metadata: %w", err)
 	}
 	return nil
@@ -147,7 +147,7 @@ func PutCartItem(ctx context.Context, userID string, item models.CartItem) error
 func UpdateCartItemQuantity(ctx context.Context, userID, itemID string, qty int) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 
-	key, err := dynamodb.BuildKey("PK", cartPK(userID), "SK", itemSK(itemID))
+	key, err := dynamo.BuildKey("PK", cartPK(userID), "SK", itemSK(itemID))
 	if err != nil {
 		return fmt.Errorf("repo.UpdateCartItemQuantity: build key: %w", err)
 	}
@@ -157,7 +157,7 @@ func UpdateCartItemQuantity(ctx context.Context, userID, itemID string, qty int)
 		":ts":  &ddbTypes.AttributeValueMemberS{Value: now},
 	}
 
-	_, err = dynamodb.UpdateItem(ctx, table, key,
+	_, err = dynamo.UpdateItem(ctx, table, key,
 		"SET quantity = :qty, updated_at = :ts",
 		exprValues, nil, nil)
 	if err != nil {
@@ -168,11 +168,11 @@ func UpdateCartItemQuantity(ctx context.Context, userID, itemID string, qty int)
 
 // DeleteCartItem removes a single item row from the cart table.
 func DeleteCartItem(ctx context.Context, userID, itemID string) error {
-	key, err := dynamodb.BuildKey("PK", cartPK(userID), "SK", itemSK(itemID))
+	key, err := dynamo.BuildKey("PK", cartPK(userID), "SK", itemSK(itemID))
 	if err != nil {
 		return fmt.Errorf("repo.DeleteCartItem: build key: %w", err)
 	}
-	if err := dynamodb.DeleteItem(ctx, table, key, false, nil, nil); err != nil {
+	if err := dynamo.DeleteItem(ctx, table, key, false, nil, nil); err != nil {
 		return fmt.Errorf("repo.DeleteCartItem: delete: %w", err)
 	}
 	return nil
@@ -182,7 +182,7 @@ func DeleteCartItem(ctx context.Context, userID, itemID string) error {
 func ClearCart(ctx context.Context, userID string) error {
 	pk := cartPK(userID)
 
-	rows, err := dynamodb.QueryAll(ctx, dynamodb.QueryInput{
+	rows, err := dynamo.QueryAll(ctx, dynamo.QueryInput{
 		TableName:              table,
 		KeyConditionExpression: "PK = :pk AND begins_with(SK, :prefix)",
 		ExpressionValues: map[string]ddbTypes.AttributeValue{
@@ -205,7 +205,7 @@ func ClearCart(ctx context.Context, userID string) error {
 			keys = append(keys, map[string]ddbTypes.AttributeValue{"PK": pkAttr, "SK": skAttr})
 		}
 		if len(keys) > 0 {
-			if err := dynamodb.DeleteItem(ctx, table, nil, true, keys, nil); err != nil {
+			if err := dynamo.DeleteItem(ctx, table, nil, true, keys, nil); err != nil {
 				return fmt.Errorf("repo.ClearCart: batch delete: %w", err)
 			}
 		}
@@ -218,7 +218,7 @@ func ClearCart(ctx context.Context, userID string) error {
 		UserID:    userID,
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
-	if err := dynamodb.WriteItemFrom(ctx, table, meta, false, nil, nil); err != nil {
+	if err := dynamo.WriteItemFrom(ctx, table, meta, false, nil, nil); err != nil {
 		return fmt.Errorf("repo.ClearCart: write metadata: %w", err)
 	}
 	return nil
@@ -226,13 +226,13 @@ func ClearCart(ctx context.Context, userID string) error {
 
 // ItemExists returns true if an ITEM#<itemID> row exists for the user's cart.
 func ItemExists(ctx context.Context, userID, itemID string) (bool, error) {
-	key, err := dynamodb.BuildKey("PK", cartPK(userID), "SK", itemSK(itemID))
+	key, err := dynamo.BuildKey("PK", cartPK(userID), "SK", itemSK(itemID))
 	if err != nil {
 		return false, fmt.Errorf("repo.ItemExists: build key: %w", err)
 	}
 
 	var rec cartItemRecord
-	err = dynamodb.GetItemAs(ctx, table, key, false, nil, &rec)
+	err = dynamo.GetItemAs(ctx, table, key, false, nil, &rec)
 	if err != nil {
 		// SDK returns an error for item-not-found — treat that as not-found (not an error).
 		return false, nil

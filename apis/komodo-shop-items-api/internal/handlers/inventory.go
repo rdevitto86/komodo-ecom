@@ -9,6 +9,7 @@ import (
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"komodo-shop-items-api/internal/models"
+	"komodo-shop-items-api/internal/store"
 )
 
 // Returns inventory data for all tracked items
@@ -22,7 +23,7 @@ func GetInventory(wtr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	inventory, err := client.FetchInventory(req.Context(), bucket)
+	inventory, err := store.FetchInventory(req.Context(), bucket)
 	if err != nil {
 		logger.Error("failed to fetch inventory", err)
 		httpErr.SendError(wtr, req, models.Err.InventoryUnavailable, httpErr.WithDetail("failed to retrieve inventory data"))

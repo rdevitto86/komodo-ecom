@@ -9,9 +9,9 @@ import (
 )
 
 func TestHealth(t *testing.T) {
-	resp := get(t, "/health", nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusOK)
+	res := get(t, "/health", nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusOK)
 }
 
 // --- Guest cart ---
@@ -20,9 +20,9 @@ func TestHealth(t *testing.T) {
 func TestGuestCart_CreateAndGet(t *testing.T) {
 	cartID, _ := createGuestCart(t)
 
-	resp := get(t, "/cart/"+cartID, nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusOK)
+	res := get(t, "/cart/"+cartID, nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusOK)
 }
 
 // TestGuestCart_AddAndRemoveItem adds an item to a guest cart then removes it.
@@ -96,32 +96,32 @@ func TestGuestCart_Clear(t *testing.T) {
 	cartID, sessionID := createGuestCart(t)
 	h := map[string]string{"X-Session-ID": sessionID}
 
-	resp := del(t, "/cart/"+cartID, h)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusOK)
+	res := del(t, "/cart/"+cartID, h)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusOK)
 }
 
 // TestGuestCart_GetUnknown verifies 404 for a non-existent cart ID.
 func TestGuestCart_GetUnknown(t *testing.T) {
-	resp := get(t, "/cart/cart-does-not-exist", nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusNotFound)
+	res := get(t, "/cart/cart-does-not-exist", nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusNotFound)
 }
 
 // --- Authenticated cart ---
 
 // TestAuthCart_NoToken verifies authenticated cart routes reject missing JWTs.
 func TestAuthCart_NoToken(t *testing.T) {
-	resp := get(t, "/me/cart", nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusUnauthorized)
+	res := get(t, "/me/cart", nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusUnauthorized)
 }
 
 // TestAuthCart_GetCart fetches the authenticated user's cart.
 func TestAuthCart_GetCart(t *testing.T) {
-	resp := get(t, "/me/cart", authHeader(t))
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusOK)
+	res := get(t, "/me/cart", authHeader(t))
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusOK)
 }
 
 // TestAuthCart_AddAndRemoveItem adds an item to the authenticated cart then removes it.
@@ -157,24 +157,24 @@ func TestAuthCart_AddAndRemoveItem(t *testing.T) {
 // TestAuthCart_ClearCart clears the authenticated user's cart.
 func TestAuthCart_ClearCart(t *testing.T) {
 	h := authHeader(t)
-	resp := del(t, "/me/cart", h)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusOK)
+	res := del(t, "/me/cart", h)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusOK)
 }
 
 // createGuestCart is a helper that creates a guest cart and returns (cartID, sessionID).
 func createGuestCart(t *testing.T) (string, string) {
 	t.Helper()
-	resp := post(t, "/cart", nil, nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusCreated)
+	res := post(t, "/cart", nil, nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusCreated)
 
-	sessionID := resp.Header.Get("X-Session-ID")
+	sessionID := res.Header.Get("X-Session-ID")
 
 	var cart struct {
 		ID string `json:"id"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&cart); err != nil {
+	if err := json.NewDecoder(res.Body).Decode(&cart); err != nil {
 		t.Fatalf("decode create-cart response: %v", err)
 	}
 	if cart.ID == "" {

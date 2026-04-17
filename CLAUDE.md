@@ -7,7 +7,7 @@ E-commerce platform for a real business. Architecture decisions prioritize corre
 
 ## Agent Model
 
-The main chat session is the **orchestrator** (architect role by default). Specialized work is delegated to named agents — spawned inline via the `Agent` tool or run in dedicated terminal windows.
+The main chat session is the **orchestrator** (advisor role by default). Specialized work is delegated to named agents — spawned inline via the `Agent` tool or run in dedicated terminal windows.
 
 Agent definitions live in `~/.claude/agents/` (symlinked from `komodo-claude-core`). The orchestrator routes to them by name.
 
@@ -60,8 +60,8 @@ Auto-run shell scripts registered in `~/.claude/settings.json`:
 
 ```
 komodo-ecom/
-├── apis/           # Go microservices
-│   └── komodo-*-api/        # Independently deployable Go services
+├── apis/           # Microservices (Go/Rust/Node/Python)
+│   └── komodo-*-api/        # Independently deployable services
 ├── infra/          # All infrastructure config
 │   ├── local/               # Local dev (docker-compose, LocalStack, services.jsonc)
 │   └── deploy/              # AWS deployment (CloudFormation, EC2 compose, scripts)
@@ -116,7 +116,11 @@ Three `TODO.md` files serve as the project's living backlog. Check the relevant 
 2. Pull `openapi.yaml` (service root) for contract questions, or other `docs/` files only if directly relevant (e.g. `data-model.md` for DynamoDB work).
 3. Do not read sibling service directories unless the task explicitly spans services.
 4. Fall back to this file only for monorepo-wide conventions.
-5. Before writing any models, error codes, or adapters, check `apis/<service>/pkg/<version>/` — custom types, error codes (`models/errors.go`), and exported adapters live here. Do not redefine what already exists.
+5. Before writing any models, error codes, or adapters:
+   - **Contract source of truth:** `apis/<service>/openapi.yaml` — all request/response shapes are defined here.
+   - **Error code ranges:** `komodo-forge-sdk-go/http/errors/ranges.go` — the registry of cross-service numeric range assignments (e.g. `RangeCart = 43`). Read `codes.go` in the same package before defining new codes to avoid collisions.
+   - **Generated API clients (future):** `komodo-forge-sdk-go/api/adapters/v{N}/<service>/` — this is where the codegen pipeline will emit typed clients. **The generator does not yet exist** (tracked in `komodo-forge-sdk-go/TODO.md`). Do not create stub files at this path — the generator owns that directory.
+   - The old `apis/<service>/pkg/<version>/` directories have been deleted. Do not reference them.
 6. When using forge SDK packages, read the source in the `komodo-forge-sdk-go` repo (`github.com/rdevitto86/komodo-forge-sdk-go`) — do not guess signatures. Key packages:
    - `http/server` — `server.Run` (Lambda/HTTP universal entrypoint)
    - `http/middleware` — `middleware.Chain`, auth, rate-limiter, request-id, CORS, etc. (see `http/middleware/exports.go`)
@@ -276,4 +280,4 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 | 7101–7110 | Support & CX | 7101 `support-api` | 7102–7110 |
 | 7111–7120 | Analytics & Discovery | — | 7111–7120 |
 
-> **Rust variants:** `komodo-payments-api-rust` and `komodo-shop-inventory-api-rust` are V2 experiments — no ports assigned until A/B migration begins.
+> **Rust variants:** `komodo-payments-api` and `komodo-shop-inventory-api` are teaching experiments — no ports assigned yet.

@@ -45,7 +45,7 @@ func makeURL(path string) string {
 	return fmt.Sprintf("%s%s", baseURL, path)
 }
 
-// get issues a GET. Callers must close resp.Body.
+// get issues a GET. Callers must close res.Body.
 func get(t *testing.T, path string, headers map[string]string) *http.Response {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodGet, makeURL(path), nil)
@@ -55,14 +55,14 @@ func get(t *testing.T, path string, headers map[string]string) *http.Response {
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	resp, err := client.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("GET %s: %v", path, err)
 	}
-	return resp
+	return res
 }
 
-// post issues a POST with an optional JSON body. Callers must close resp.Body.
+// post issues a POST with an optional JSON body. Callers must close res.Body.
 func post(t *testing.T, path string, body any, headers map[string]string) *http.Response {
 	t.Helper()
 	var r io.Reader
@@ -83,14 +83,14 @@ func post(t *testing.T, path string, body any, headers map[string]string) *http.
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	resp, err := client.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("POST %s: %v", path, err)
 	}
-	return resp
+	return res
 }
 
-// del issues a DELETE. Callers must close resp.Body.
+// del issues a DELETE. Callers must close res.Body.
 func del(t *testing.T, path string, headers map[string]string) *http.Response {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodDelete, makeURL(path), nil)
@@ -100,28 +100,28 @@ func del(t *testing.T, path string, headers map[string]string) *http.Response {
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	resp, err := client.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("DELETE %s: %v", path, err)
 	}
-	return resp
+	return res
 }
 
-// checkStatus fails if resp.StatusCode != want, printing the body for context.
-// Does NOT close the body — callers must defer resp.Body.Close().
-func checkStatus(t *testing.T, resp *http.Response, want int) {
+// checkStatus fails if res.StatusCode != want, printing the body for context.
+// Does NOT close the body — callers must defer res.Body.Close().
+func checkStatus(t *testing.T, res *http.Response, want int) {
 	t.Helper()
-	if resp.StatusCode != want {
-		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("want HTTP %d, got %d\nbody: %s", want, resp.StatusCode, body)
+	if res.StatusCode != want {
+		body, _ := io.ReadAll(res.Body)
+		t.Fatalf("want HTTP %d, got %d\nbody: %s", want, res.StatusCode, body)
 	}
 }
 
 // decodeJSON decodes the response body into dst.
-// Callers must defer resp.Body.Close().
-func decodeJSON(t *testing.T, resp *http.Response, dst any) {
+// Callers must defer res.Body.Close().
+func decodeJSON(t *testing.T, res *http.Response, dst any) {
 	t.Helper()
-	if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
+	if err := json.NewDecoder(res.Body).Decode(dst); err != nil {
 		t.Fatalf("decode response body: %v", err)
 	}
 }

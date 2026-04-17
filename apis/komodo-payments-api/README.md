@@ -73,7 +73,7 @@ Payment processing, refunds, payment methods, and installment plan management.
 
 ### Run
 ```bash
-cd apis/komodo-payments-api-rust
+cd apis/komodo-payments-api
 source .env.local
 cargo run
 ```

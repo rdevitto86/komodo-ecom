@@ -7,7 +7,9 @@ use serde_json::json;
 use thiserror::Error;
 
 /// RFC 7807 Problem+JSON error response.
-/// Error codes mirror the Go pkg/v1/models/errors.go ranges (44xxx).
+/// Error codes use the 44xxx range (RangeInventory = 44) defined in
+/// `komodo-forge-sdk-go/http/errors/ranges.go` — the single source of truth
+/// for cross-service error code range assignments.
 #[derive(Debug, Error)]
 pub enum AppError {
     // 44xxx — inventory-specific

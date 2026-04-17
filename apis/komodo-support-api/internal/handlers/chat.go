@@ -8,9 +8,9 @@ import (
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
+	"komodo-support-api/internal/models"
 	"komodo-support-api/internal/repository"
 	"komodo-support-api/internal/service"
-	"komodo-support-api/internal/models"
 )
 
 type ChatHandler struct {
@@ -80,7 +80,7 @@ func (h *ChatHandler) SendMessage(wtr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	resp, err := h.svc.SendMessage(req.Context(), sessionID, body.Message)
+	res, err := h.svc.SendMessage(req.Context(), sessionID, body.Message)
 	if err != nil {
 		logger.Error("failed to send chat message", err)
 		httpErr.SendError(wtr, req, models.Err.ChatError)
@@ -88,7 +88,7 @@ func (h *ChatHandler) SendMessage(wtr http.ResponseWriter, req *http.Request) {
 	}
 
 	wtr.WriteHeader(http.StatusOK)
-	json.NewEncoder(wtr).Encode(resp)
+	json.NewEncoder(wtr).Encode(res)
 }
 
 // GetHistory handles GET /chat/history and GET /me/chat/history

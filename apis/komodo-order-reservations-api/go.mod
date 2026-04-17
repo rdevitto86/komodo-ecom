@@ -8,7 +8,7 @@ require (
 )
 
 require (
-	github.com/aws/aws-lambda-go v1.52.0 // indirect
+	github.com/aws/aws-lambda-go v1.54.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.1 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.2 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.2 // indirect
@@ -30,5 +30,9 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/redis/go-redis/v9 v9.17.0 // indirect
+	github.com/stretchr/testify v1.8.4 // indirect
+	golang.org/x/net v0.41.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

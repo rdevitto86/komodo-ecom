@@ -9,7 +9,7 @@ import (
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
 	"komodo-shop-items-api/internal/models"
-	"komodo-shop-items-api/pkg/v1/client"
+	"komodo-shop-items-api/internal/store"
 )
 
 // Returns a single item (product or service) by SKU
@@ -30,14 +30,14 @@ func GetItemBySKU(wtr http.ResponseWriter, req *http.Request) {
 	}
 
 	// Try product first, then fall back to service
-	product, err := client.FetchProductBySKU(req.Context(), bucket, sku)
+	product, err := store.FetchProductBySKU(req.Context(), bucket, sku)
 	if err == nil {
 		wtr.WriteHeader(http.StatusOK)
 		json.NewEncoder(wtr).Encode(product)
 		return
 	}
 
-	service, err := client.FetchServiceBySKU(req.Context(), bucket, sku)
+	service, err := store.FetchServiceBySKU(req.Context(), bucket, sku)
 	if err == nil {
 		wtr.WriteHeader(http.StatusOK)
 		json.NewEncoder(wtr).Encode(service)

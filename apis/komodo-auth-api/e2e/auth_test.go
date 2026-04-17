@@ -10,21 +10,21 @@ import (
 )
 
 func TestHealth(t *testing.T) {
-	resp := get(t, "/health", nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusOK)
+	res := get(t, "/health", nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusOK)
 }
 
 // TestJWKS verifies the public key set is served and contains at least one key.
 func TestJWKS(t *testing.T) {
-	resp := get(t, "/.well-known/jwks.json", nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusOK)
+	res := get(t, "/.well-known/jwks.json", nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusOK)
 
 	var body struct {
 		Keys []map[string]any `json:"keys"`
 	}
-	decodeJSON(t, resp, &body)
+	decodeJSON(t, res, &body)
 	if len(body.Keys) == 0 {
 		t.Fatal("JWKS response contains no keys")
 	}
@@ -44,16 +44,16 @@ func TestOAuthToken_ClientCredentials(t *testing.T) {
 		"client_id":     clientID,
 		"client_secret": clientSecret,
 	}
-	resp := post(t, "/oauth/token", body, nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusOK)
+	res := post(t, "/oauth/token", body, nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusOK)
 
 	var tok struct {
 		AccessToken string `json:"access_token"`
 		TokenType   string `json:"token_type"`
 		ExpiresIn   int    `json:"expires_in"`
 	}
-	decodeJSON(t, resp, &tok)
+	decodeJSON(t, res, &tok)
 	if tok.AccessToken == "" {
 		t.Fatal("expected non-empty access_token in token response")
 	}
@@ -64,33 +64,33 @@ func TestOAuthToken_ClientCredentials(t *testing.T) {
 
 // TestOAuthToken_MissingGrantType verifies the endpoint rejects a missing grant_type.
 func TestOAuthToken_MissingGrantType(t *testing.T) {
-	resp := post(t, "/oauth/token", map[string]any{"client_id": "x"}, nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusBadRequest)
+	res := post(t, "/oauth/token", map[string]any{"client_id": "x"}, nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusBadRequest)
 }
 
 // TestOAuthToken_UnknownGrantType verifies an unsupported grant type is rejected.
 func TestOAuthToken_UnknownGrantType(t *testing.T) {
-	resp := post(t, "/oauth/token", map[string]any{
+	res := post(t, "/oauth/token", map[string]any{
 		"grant_type": "magic_beans",
 		"client_id":  "x",
 	}, nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusBadRequest)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusBadRequest)
 }
 
 // TestOAuthIntrospect_NoAuth verifies introspect requires a client token.
 func TestOAuthIntrospect_NoAuth(t *testing.T) {
-	resp := post(t, "/oauth/introspect", map[string]any{"token": "fake-token"}, nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusUnauthorized)
+	res := post(t, "/oauth/introspect", map[string]any{"token": "fake-token"}, nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusUnauthorized)
 }
 
 // TestOAuthRevoke_NoAuth verifies revoke requires a client token.
 func TestOAuthRevoke_NoAuth(t *testing.T) {
-	resp := post(t, "/oauth/revoke", map[string]any{"token": "fake-token"}, nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusUnauthorized)
+	res := post(t, "/oauth/revoke", map[string]any{"token": "fake-token"}, nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusUnauthorized)
 }
 
 // TestOAuthIntrospect_WithClientToken introspects a token issued by the service.
@@ -106,17 +106,17 @@ func TestOAuthIntrospect_WithClientToken(t *testing.T) {
 	// Use client credentials as the client auth token.
 	clientToken := issueClientToken(t, clientID, clientSecret)
 
-	resp := post(t, "/oauth/introspect",
+	res := post(t, "/oauth/introspect",
 		map[string]any{"token": testJWT},
 		map[string]string{"Authorization": "Bearer " + clientToken},
 	)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusOK)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusOK)
 
 	var result struct {
 		Active bool `json:"active"`
 	}
-	decodeJSON(t, resp, &result)
+	decodeJSON(t, res, &result)
 	if !result.Active {
 		t.Fatal("expected active=true for a valid TEST_JWT")
 	}
@@ -130,14 +130,14 @@ func issueClientToken(t *testing.T, clientID, clientSecret string) string {
 		"client_id":     clientID,
 		"client_secret": clientSecret,
 	}
-	resp := post(t, "/oauth/token", body, nil)
-	defer resp.Body.Close()
-	checkStatus(t, resp, http.StatusOK)
+	res := post(t, "/oauth/token", body, nil)
+	defer res.Body.Close()
+	checkStatus(t, res, http.StatusOK)
 
 	var tok struct {
 		AccessToken string `json:"access_token"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&tok); err != nil {
+	if err := json.NewDecoder(res.Body).Decode(&tok); err != nil {
 		t.Fatalf("decode client token: %v", err)
 	}
 	return tok.AccessToken

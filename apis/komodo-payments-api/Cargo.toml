@@ -1,5 +1,5 @@
 [package]
-name = "komodo-payments-api-rust"
+name = "komodo-payments-api"
 version = "0.1.0"
 edition = "2024"
 

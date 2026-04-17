@@ -1,0 +1,105 @@
+openapi: "3.0.3"
+info:
+  title: Komodo AI Guardrails API
+  version: "0.1.0"
+  description: >
+    Content moderation and guardrails proxy. Detects PII, prompt injection,
+    and toxicity before text is forwarded to LLM providers.
+servers:
+  - url: http://localhost:7113
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: health
+      tags: [Health]
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: komodo-ai-guardrails-api
+                  version:
+                    type: string
+                    example: "0.1.0"
+                  provider:
+                    type: string
+                    example: local
+                required: [status, service, version, provider]
+
+  /guardrails/moderate:
+    post:
+      summary: Run guardrail checks on a text payload
+      operationId: moderate
+      tags: [Guardrails]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModerateRequest"
+      responses:
+        "200":
+          description: Check results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModerateResponse"
+        "422":
+          description: Validation error
+
+components:
+  schemas:
+    CheckType:
+      type: string
+      enum: [pii, obscenity, injection, toxicity]
+      description: >
+        - pii: PII detection and redaction (rule-based)
+        - injection: Prompt injection pattern detection (rule-based)
+        - obscenity: Obscenity check (LLM-backed, stubbed)
+        - toxicity: Toxicity check (LLM-backed, stubbed)
+
+    ModerateRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          maxLength: 8192
+          description: Text to evaluate
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/CheckType"
+          default: [pii, obscenity, injection, toxicity]
+          description: Which checks to run. Defaults to all.
+
+    ModerateResponse:
+      type: object
+      required: [passed, flags, redacted_text, provider, latency_ms]
+      properties:
+        passed:
+          type: boolean
+          description: True if no flags were raised
+        flags:
+          type: array
+          items:
+            type: string
+          description: List of flag identifiers raised (e.g. "pii.email", "injection")
+        redacted_text:
+          type: string
+          description: Input text with PII replaced by safe placeholders
+        provider:
+          type: string
+          description: Active LLM provider used for this request
+        latency_ms:
+          type: integer
+          description: Processing time in milliseconds

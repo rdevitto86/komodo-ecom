@@ -1,5 +1,5 @@
 [package]
-name = "komodo-shop-inventory-api-rust"
+name = "komodo-shop-inventory-api"
 version = "0.1.0"
 edition = "2024"
 

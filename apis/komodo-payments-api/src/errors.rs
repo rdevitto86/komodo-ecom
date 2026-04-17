@@ -7,7 +7,9 @@ use serde_json::json;
 use thiserror::Error;
 
 /// RFC 7807 Problem+JSON error response.
-/// Error codes mirror the Go pkg/v1/models/error.go ranges (50xxx).
+/// Error codes use the 50xxx range (RangePayment = 50) defined in
+/// `komodo-forge-sdk-go/http/errors/ranges.go` — the single source of truth
+/// for cross-service error code range assignments.
 #[derive(Debug, Error)]
 pub enum AppError {
     // 50001 — payment-specific

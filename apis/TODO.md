@@ -50,13 +50,6 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 ---
 
 ## komodo-shop-inventory-api
-> **ABANDONED** — V1 is Rust. See `komodo-shop-inventory-api-rust`.
-
-~~Go implementation items removed — all work happens in the Rust service.~~
-
----
-
-## komodo-shop-inventory-api-rust
 > Status: Stub complete — all layers scaffolded (Axum, models, repo trait, handlers). DynamoDB impl is `todo!()`.
 
 - [ ] **[H]** Implement `DynamoInventoryRepo::reserve` — conditional write (`available_qty >= requested`), write HOLD# record with TTL
@@ -89,13 +82,6 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 ---
 
 ## komodo-payments-api
-> **ABANDONED** — V1 is Rust. See `komodo-payments-api-rust`.
-
-~~Go implementation items removed — all work happens in the Rust service.~~
-
----
-
-## komodo-payments-api-rust
 > Status: Stub complete — all layers scaffolded (Axum, models, repo trait, Stripe provider, handlers). DynamoDB impl and Stripe calls are `todo!()`.
 
 - [ ] **[H]** Implement `DynamoPaymentsRepo::save_charge` / `get_charge` — PK=CHARGE#<uuid>, SK=METADATA
@@ -112,6 +98,7 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 - [ ] **[M]** Publish payment plan events (`payment.plan.created`, `payment.plan.installment.charged`, etc.) to event-bus-api
 - [ ] **[M]** Write `docs/data-model.md` — finalize DynamoDB table schema
 - [ ] **[L]** Implement `common::spawn_app()` in tests + enable integration tests with Stripe test mode
+- [ ] **[M]** Enforce autopay requires payment method on file — validate that the user has an active bank account or credit card record before enabling autopay or processing any autopay transaction; return a clear error if no method exists; may require an `autopay_enabled` boolean and method-presence check in the DB schema
 
 ---
 
@@ -161,8 +148,10 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 - [ ] **[M]** Expand CDC order event payload with additional fields: `total_cents`, `item_count`, `customer_id` (`cdc/domains/orders.go:48`)
 - [ ] **[M]** Wire EventBridge as the routing layer for CDC events — add EventBridge rules for flexible per-domain fanout (orders → order consumers, payments → payment consumers, etc.)
 - [ ] **[M]** Define and publish interaction events (`cart.item_added`, `order.started`, `order.abandoned`) — extend event type catalogue for analytics consumers
+- [ ] **[M]** Per-connector publisher workers + DLQ — each outbound sink (SNS, EventBridge, S3 data lake, in-memory fan-out) runs its own goroutine/worker so one slow or failing sink cannot block the others; failed publishes route to a per-connector DLQ (SQS or in-memory bounded queue) with retry policy and max-age eviction
 - [ ] **[L]** Emit CloudWatch metric (or fixed-key structured log) on unroutable CDC events (`cdc/handler.go:51`)
 - [ ] **[L]** Add integration tests for event publish and consumer routing
+- [ ] **[L]** Evaluate gRPC as an additional internal transport — research protobuf schema enforcement, bi-directional streaming, and performance vs complexity tradeoff compared to current HTTP REST; document findings in `docs/design-decisions.md` before any implementation; not a blocking item
 
 ---
 
@@ -269,34 +258,57 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 
 ---
 
+## komodo-slm-api (NEW — Python FastAPI)
+> Status: Not yet created. Python FastAPI service for local SLM inference and Bedrock offloading. Python chosen for native LLM tooling, sanitization, and injection protection — Go and Rust lack sufficient LLM ecosystem support for this layer.
+
+- [ ] **[L]** Scaffold Python FastAPI service — project structure, dependency management (uv or pip), health endpoint, logging, secrets loading; port TBD in 7111–7120 Analytics & Discovery block (reserve 7113)
+- [ ] **[L]** Implement provider abstraction — `LocalSLMProvider` (Ollama or similar on-prem) and `BedrockProvider` (AWS Bedrock); toggle via env config (`SLM_PROVIDER=local|bedrock`); both implement the same interface so callers are provider-agnostic
+- [ ] **[L]** Implement task endpoints: `POST /summarize`, `POST /insights`, `POST /moderate` (guardrails/content moderation), `POST /support` (customer servicing suggestions); each endpoint validates input, sanitizes against prompt injection, and routes to the active provider
+- [ ] **[L]** Wire input sanitization and prompt injection protection on all endpoints — normalize whitespace, strip control characters, enforce max token limits before forwarding to the model
+- [ ] **[L]** Add Bedrock IAM role and secret config to infra — `AWS_BEDROCK_MODEL_ID`, region, and credentials; add local stub values to LocalStack secrets init
+- [ ] **[L]** Add integration tests for each task endpoint against a local SLM stub
+
+---
+
+## komodo-statistics-api (NEW)
+> Status: Not yet created. Real-time ecom stats service — subscribes to event-bus-api and maintains aggregated stats in an in-memory SQLite DB.
+
+- [ ] **[M]** Scaffold service: bootstrap (logger, secrets, SQLite in-memory DB), dual-server (public + private) ServeMux, event-bus-api subscriber client; port 7111 (public), 7112 (private) — Analytics & Discovery block
+- [ ] **[M]** Subscribe to relevant event-bus-api events — `cart.item_added`, `cart.item_removed`, `order.placed`, `order.fulfilled`, `shop_item.viewed`; update stat counters in SQLite on each event
+- [ ] **[M]** Implement public stat routes — `GET /stats/items/{itemId}/in-cart` ("X users have this in cart"), `GET /stats/items/{itemId}/recently-bought` ("Y people bought this in the last month"), `GET /stats/items/{itemId}/frequently-bought-with` (co-purchase pairings); served to ecom UI via BFF
+- [ ] **[M]** Implement internal/admin stat routes — `GET /internal/stats/dashboard` and per-domain aggregates for admin dashboards and inter-API analytics consumers
+- [ ] **[M]** Background TTL cleanup worker — goroutine that periodically scans the SQLite DB for rows past their TTL column value and deletes them; prevents unbounded memory growth
+- [ ] **[L]** Add integration tests for event subscription, stat accumulation, and TTL cleanup
+
+---
+
+## komodo-insights-api
+> Status: Stub — handler skeletons only. Backed by Bedrock/Claude API calls.
+
+- [ ] **[M]** Add local response cache for Bedrock/Claude API calls — cache by summary/query type with an expiry timestamp; serve cached result if not expired; refresh on weekly/biweekly schedule or when threshold exceeded; prevents repeated expensive LLM calls on every request
+
+---
+
+## komodo-shop-promotions-api
+> Status: Not yet scaffolded. Handles promotions, discount logic, and first-order tracking.
+
+- [ ] **[M]** Track first-order flag per account — on `order.placed` event, record whether this is the account's first order (guest or registered); store in promotions DB as a boolean/timestamp record; used to gate first-order discount eligibility
+
+---
+
 ## Cross-Cutting
 
 - [ ] **[H]** Finalize `user-api` DynamoDB single-table schema — unblocks addresses, payments, and preferences across the UI
-- [ ] **[H]** Add shared hashing utility (bcrypt or Argon2id) to forge SDK or cross-service layer — standardize password and token hashing across all services
 - [ ] **[M]** Establish shared event type catalogue (`event-bus-api` has it defined but services aren't validating against it)
 - [ ] **[M]** Wire `support-api` escalation → `communications-api` once communications-api is scaffolded
-- [ ] **[M]** Confirm forge SDK `aws/dynamodb` package path and update `order-reservations-api` bootstrap
+- [ ] **[M]** Typed config constants across Go services — replace sprinkled `os.Getenv("FOO")` calls with a per-service `internal/config` package (or shared SDK helper) exposing typed constants; centralizes the env-var surface, surfaces required-vs-optional vars, prevents typos
 - [ ] **[L]** Add `docs/data-model.md` to every API that uses DynamoDB (currently missing for most)
 - [ ] **[L]** Standardize `openapi.yaml` across all APIs (several stubs are missing or outdated)
 - [ ] **[L]** Write unit + integration tests for all services (`go test ./...` must pass; at minimum happy path + error cases per handler)
 - [ ] **[M]** Wire inbound shipping to returns flow — `order-returns-api` calls `shipping-api` `POST /shipping/labels/inbound` on RMA approval and returns the label URL to the customer
 - [ ] **[M]** Wire inbound shipping to repair intake — `order-reservations-api` calls `shipping-api` `POST /shipping/labels/inbound` on repair booking confirmation; store `inbound_shipment_id` on the booking record
 - [ ] **[M]** Wire outbound shipping to order fulfillment — `order-api` calls `shipping-api` `POST /shipping/labels/outbound` when order transitions to `shipped`; store tracking number and carrier on the order record
-- [ ] **[M]** Add default version exports to all Go service `pkg/` packages — each `pkg/` root should re-export from the current stable versioned subpackage (e.g. `pkg/v1`) so consumers can import a single unversioned canonical path; older/newer versions remain importable via their versioned subpath
+- [ ] **[M]** Guest + registered account identity model — email (not phone) is the cross-DB correlation key for both guest and registered accounts; each account still has a unique `account_id` as the primary key; email must be stored consistently across user-api, auth-api, and promotions-api to enable unsubscribe preference management for guest accounts without requiring registration; do not use phone as a linking key (privacy risk)
+- [ ] **[M]** Reserve ports 7111–7113 in port allocation — 7111 `statistics-api` public, 7112 `statistics-api` private, 7113 `slm-api`; update CLAUDE.md port table when confirmed
 
-## SDK Extractions (komodo-forge-sdk-go)
-
-- [ ] **[M]** Extract HTTP client base into `http/client` — `pkg/v1/client/client.go` in auth-api, user-api, and cart-api all implement the same `post()`/`get()` helpers (context, JSON marshal, bearer token, RFC 7807 error unwrap). Every service that calls another service will need this. Move to SDK so services only define their own endpoint methods.
-- [ ] **[L]** Add health handler to `http/handlers` — 5+ services (`user-api`, `cart-api`, `shop-inventory-api`, `reviews-api`, `features-api`) implement an identical `{"status":"OK"}` health endpoint. Move to SDK as a one-liner registration.
-- [ ] **[M]** **Enterprise Pattern: Circuit Breaker** — Extract circuit breaker to `resilience/circuitbreaker` in SDK. APIs with external service dependencies need circuit breaker protection when DB or downstream services are down:
-  - **komodo-auth-api**: ElastiCache token revocation checks (`oauth_token_handler.go:173`)
-  - **komodo-cart-api**: `shop-items-api` calls (product snapshots), `inventory-api` calls (stock holds)
-  - **komodo-support-api**: Anthropic Haiku LLM calls (`anthropic.go:39`)
-  - **komodo-address-api**: External address validation provider (SmartyStreets/Google) — currently stubs (`address.go:50,59,77`)
-  - **komodo-search-api**: Typesense search queries
-  - **komodo-communications-api**: SendGrid/SES email, Twilio/SNS SMS (future providers)
-  - **komodo-shipping-api**: Carrier aggregator API (EasyPost/ShipStation)
-  - **komodo-payments-api-rust**: Stripe API calls (`payment_intents`, `refunds`)
-  - **komodo-event-bus-api**: SNS publish calls (CDC Lambda and relay publisher)
-  - **Cross-service calls**: cart-api ↔ inventory-api, order-api ↔ payments-api, order-api ↔ shipping-api, returns-api ↔ payments-api/inventory-api
-  - **Pattern requirements**: Configurable failure threshold, half-open state probe, exponential backoff, fallback to degraded mode (cache-only, async queue, or fail-fast with clear error codes)
+> **SDK extractions moved** — items previously listed here (HTTP client base, health handler, circuit breaker with call-site context, shared hashing utility) now live in `komodo-forge-sdk-go/TODO.md`. Service-side code migration to the generated adapters is tracked there alongside the codegen pipeline.

@@ -95,6 +95,18 @@ Sections are ordered by dependency — local dev must work before AWS deploy mat
 
 ---
 
+## Deployment Strategy — Lambda vs Fargate
+> Current architecture assumes Fargate/ECS with dual ports per runtime. Lambda deployment requires different approach.
+
+- [ ] **[M]** Add deployment flag parameter (`DEPLOYMENT_TARGET: lambda|fargate`) to CloudFormation templates and deployment scripts
+- [ ] **[M]** When `DEPLOYMENT_TARGET=lambda`, extract each binary into its own Lambda function instead of single multi-port ECS task
+- [ ] **[M]** For services with both `/public` and `/private` endpoints (e.g., dual-port runtimes), create separate Lambda functions for public and private access since Lambda doesn't support multiple ports
+- [ ] **[M]** Update CI/CD workflows to build and deploy Lambda functions when flag is set to lambda (requires separate packaging per function)
+- [ ] **[M]** Add Lambda-specific resources to CloudFormation: IAM roles, API Gateway or ALB integration, function definitions per binary
+- [ ] **[L]** Document cost and performance trade-offs between Lambda and Fargate deployment models
+
+---
+
 ## CloudFormation — `event-pipeline.yaml` (CDC + SNS/SQS)
 > SNS topics, SQS queues, and CDC Lambda are defined but gated on table stream ARNs that don't exist yet.
 
@@ -154,6 +166,17 @@ Sections are ordered by dependency — local dev must work before AWS deploy mat
 - [ ] **[M]** Enable PITR (Point-in-Time Recovery) on all DynamoDB tables with financial data (`komodo-orders`, `komodo-payments`) — currently only enabled on `komodo-users`
 - [ ] **[L]** Add Network ACLs with explicit deny rules as a second layer below security groups
 - [ ] **[L]** Add bastion host or SSM Session Manager access for EC2 instances — no documented way to SSH in currently
+
+---
+
+## Data Lake & Analytics Pipeline
+> Phase 1: Events API writes directly to S3 on publish. Phase 2: Add Kinesis as the pipeline backbone when volume warrants — gate behind cost evaluation. Athena handles batch reporting over S3 data.
+
+- [ ] **[M]** Provision S3 data lake bucket in `infra.yaml` — versioning enabled, lifecycle policy (e.g. 90-day transition to Glacier), bucket policy scoped to Events API task IAM role; this is the archive destination for all published events
+- [ ] **[M]** Wire Events API to write event payloads to S3 on publish — partition by domain and date (`s3://komodo-data-lake/events/{domain}/{YYYY}/{MM}/{DD}/`); Phase 1 path bypasses Kinesis to avoid cost
+- [ ] **[M]** Set up Athena workgroup + database over the data lake bucket — enables monthly/quarterly ad-hoc reporting and analytics queries against the full event history; output results to a separate S3 results bucket
+- [ ] **[L]** Phase 2 — Add Kinesis Data Firehose between Events API and S3 when event volume warrants — Firehose buffers, batches, and delivers to S3; Events API publishes to Kinesis stream instead of writing S3 directly; gate this behind a cost/volume threshold review
+- [ ] **[L]** Phase 2 — Evaluate Kinesis Data Streams for real-time consumers (Statistics API, external subscribers) — if bi-directional streaming is needed beyond SNS/SQS fanout, Kinesis Streams adds per-shard consumer support; document tradeoffs before implementing
 
 ---
 

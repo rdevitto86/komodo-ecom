@@ -1,9 +1,12 @@
 import uvicorn
 from fastapi import FastAPI
 
-from config.consts import PORT, SERVICE_NAME, VERSION
+from config.consts import APP_ENV, PORT, SERVICE_NAME, VERSION
+from utils.logger import get_logger
 from routes.health import router as health_router
 from routes.moderate import router as moderate_router
+
+log = get_logger("main")
 
 app = FastAPI(
     title="Komodo AI Guardrails API",
@@ -16,6 +19,8 @@ app = FastAPI(
 
 app.include_router(health_router)
 app.include_router(moderate_router)
+
+log.info("service started", service=SERVICE_NAME, version=VERSION, env=APP_ENV, port=PORT)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=False)

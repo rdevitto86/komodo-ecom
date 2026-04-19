@@ -4,8 +4,10 @@ from pydantic import BaseModel, Field
 
 class CheckType(str, Enum):
     PII = "pii"
-    OBSCENITY = "obscenity"
     INJECTION = "injection"
+    DEVIATION = "deviation"
+    CODING = "coding"
+    OBSCENITY = "obscenity"
     TOXICITY = "toxicity"
 
 

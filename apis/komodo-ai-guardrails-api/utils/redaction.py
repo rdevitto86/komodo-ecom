@@ -1,74 +1,47 @@
-import re
-from typing import NamedTuple
+from presidio_analyzer import AnalyzerEngine
+from presidio_analyzer.nlp_engine import NlpEngineProvider
+from presidio_anonymizer import AnonymizerEngine
+from presidio_anonymizer.entities import OperatorConfig
 
-# ---------------------------------------------------------------------------
-# PII patterns
-# ---------------------------------------------------------------------------
+# Entity types → (flag, redaction placeholder)
+_ENTITY_CONFIG: dict[str, tuple[str, str]] = {
+    "EMAIL_ADDRESS": ("pii.email",        "[EMAIL]"),
+    "PHONE_NUMBER":  ("pii.phone",        "[PHONE]"),
+    "US_SSN":        ("pii.ssn",          "[SSN]"),
+    "CREDIT_CARD":   ("pii.credit_card",  "[CREDIT_CARD]"),
+}
 
-class _Pattern(NamedTuple):
-    flag: str
-    placeholder: str
-    regex: re.Pattern
+_ENTITIES = list(_ENTITY_CONFIG.keys())
 
+_OPERATORS = {
+    entity: OperatorConfig("replace", {"new_value": placeholder})
+    for entity, (_, placeholder) in _ENTITY_CONFIG.items()
+}
 
-_PATTERNS: list[_Pattern] = [
-    _Pattern(
-        flag="pii.email",
-        placeholder="[EMAIL]",
-        regex=re.compile(
-            r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b"
-        ),
-    ),
-    _Pattern(
-        flag="pii.phone",
-        placeholder="[PHONE]",
-        regex=re.compile(
-            r"\b(\+?1[\s.\-]?)?(\(?\d{3}\)?[\s.\-]?)\d{3}[\s.\-]?\d{4}\b"
-        ),
-    ),
-    _Pattern(
-        flag="pii.ssn",
-        placeholder="[SSN]",
-        regex=re.compile(
-            r"\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b"
-        ),
-    ),
-    _Pattern(
-        flag="pii.credit_card_full",
-        placeholder="[CREDIT_CARD]",
-        regex=re.compile(
-            r"\b(?:\d[ \-]?){13,16}\b"
-        ),
-    ),
-    _Pattern(
-        flag="pii.credit_card_last4",
-        placeholder="****-****-****-{last4}",
-        regex=re.compile(
-            r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?(\d{4})\b"
-        ),
-    ),
-]
+# Initialized once at startup. en_core_web_sm is ~12 MB and is a statistical
+# NLP model (not an LLM) — EMAIL/PHONE/SSN/CREDIT_CARD are all pattern-based
+# with checksum validation; no NER inference runs for these entity types.
+_nlp_engine = NlpEngineProvider(nlp_configuration={
+    "nlp_engine_name": "spacy",
+    "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}],
+}).create_engine()
+
+_analyzer = AnalyzerEngine(nlp_engine=_nlp_engine, supported_languages=["en"])
+_anonymizer = AnonymizerEngine()
 
 
 def redact_pii(text: str) -> tuple[str, list[str]]:
-    """Replace PII patterns in text with safe placeholders.
+    """Detect and redact PII using Presidio pattern recognizers.
 
-    Returns:
-        (redacted_text, detected_types) — detected_types is a list of flag
-        strings (e.g. ["pii.email", "pii.phone"]) for every category that
-        matched at least once.
+    Credit cards are validated via Luhn checksum. Returns
+    (redacted_text, detected_flags).
     """
-    detected: list[str] = []
+    results = _analyzer.analyze(text=text, entities=_ENTITIES, language="en")
+    if not results:
+        return text, []
 
-    for pattern in _PATTERNS:
-        if pattern.flag == "pii.credit_card_last4":
-            def replacer(match):
-                return pattern.placeholder.replace("{last4}", match.group(1))
-            replaced, count = pattern.regex.subn(replacer, text)
-        else:
-            replaced, count = pattern.regex.subn(pattern.placeholder, text)
-        if count > 0:
-            text = replaced
-            detected.append(pattern.flag)
-
-    return text, detected
+    detected = list({_ENTITY_CONFIG[r.entity_type][0] for r in results})
+    anonymized = _anonymizer.anonymize(
+        text=text, analyzer_results=results, operators=_OPERATORS
+    )
+    return anonymized.text, detected

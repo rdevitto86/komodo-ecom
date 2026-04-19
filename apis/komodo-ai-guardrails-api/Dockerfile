@@ -3,6 +3,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir pipenv
 COPY Pipfile Pipfile.lock* ./
 RUN pipenv install --system --deploy 2>/dev/null || pipenv install --system
+RUN python -m spacy download en_core_web_sm
 COPY . .
 ENV PORT=7113
 EXPOSE 7113

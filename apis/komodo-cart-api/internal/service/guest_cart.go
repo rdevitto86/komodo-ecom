@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
+	shopinventory "komodo-cart-api/internal/adapters/shopinventory/v1"
 	shopitems "komodo-cart-api/internal/adapters/shopitems/v1"
 	"komodo-cart-api/internal/models"
 	"komodo-cart-api/internal/repo"
@@ -24,11 +26,12 @@ var errForbidden = models.CartError{Code: httpErr.ErrorCode{
 type GuestCartService struct {
 	guestTTL  int64
 	shopItems *shopitems.Client
+	inventory *shopinventory.Client
 }
 
 // NewGuestCartService constructs a GuestCartService.
-func NewGuestCartService(ttl int64, shopItems *shopitems.Client) *GuestCartService {
-	return &GuestCartService{guestTTL: ttl, shopItems: shopItems}
+func NewGuestCartService(ttl int64, shopItems *shopitems.Client, inv *shopinventory.Client) *GuestCartService {
+	return &GuestCartService{guestTTL: ttl, shopItems: shopItems, inventory: inv}
 }
 
 // Create generates a new empty guest cart and persists it to Redis.
@@ -75,6 +78,15 @@ func (s *GuestCartService) AddItem(ctx context.Context, cartID, sessionID string
 	snapshot, err := s.shopItems.GetItem(ctx, req.ItemID, req.SKU)
 	if err != nil {
 		return nil, fmt.Errorf("service.GuestCart.AddItem: fetch item snapshot: %w", err)
+	}
+
+	if os.Getenv("ENV") != "local" {
+		if err := s.inventory.CheckStock(ctx, req.SKU, req.Quantity); err != nil {
+			if oosErr, ok := err.(*shopinventory.OutOfStockError); ok && oosErr.StatusCode == 409 {
+				return nil, models.Err.OutOfStock
+			}
+			return nil, fmt.Errorf("service.GuestCart.AddItem: check stock: %w", errBadGateway)
+		}
 	}
 
 	found := false

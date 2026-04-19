@@ -7,21 +7,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	httpc "github.com/rdevitto86/komodo-forge-sdk-go/http/client"
 )
 
-// HoldError is returned when the upstream responds with 409 (insufficient stock)
-// or any other non-201 HTTP status. StatusCode allows callers to distinguish 409
-// conflicts from network/gateway errors without parsing the body.
-type HoldError struct {
+// OutOfStockError is returned when available_qty is below the requested quantity,
+// or when the upstream responds with a non-200 status. StatusCode lets callers
+// distinguish a true OOS (409) from a network/gateway error without parsing the body.
+type OutOfStockError struct {
 	StatusCode int
 	Detail     string
 }
 
-func (e *HoldError) Error() string {
-	return fmt.Sprintf("shopinventory: hold failed with status %d: %s", e.StatusCode, e.Detail)
+func (e *OutOfStockError) Error() string {
+	return fmt.Sprintf("shopinventory: stock check failed with status %d: %s", e.StatusCode, e.Detail)
 }
 
 // Client is the cart-api's local adapter for shop-inventory-api.
@@ -38,32 +37,32 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-// reserveRequest maps to the ReserveRequest schema in shop-inventory-api's openapi.yaml.
-type reserveRequest struct {
-	CartID   string `json:"cart_id"`
-	Quantity int    `json:"quantity"`
+// stockLevel maps to the StockLevel schema in shop-inventory-api's openapi.yaml.
+type stockLevel struct {
+	SKU          string `json:"sku"`
+	AvailableQty int    `json:"available_qty"`
 }
 
-// holdResponse maps to the HoldResponse schema in shop-inventory-api's openapi.yaml.
-type holdResponse struct {
-	HoldID    string    `json:"hold_id"`
-	SKU       string    `json:"sku"`
-	Quantity  int       `json:"quantity"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
+// CheckStock calls GET /stock/{sku} and returns nil if available_qty >= qty.
+// Returns *OutOfStockError with StatusCode 409 when stock is insufficient.
+// Returns *OutOfStockError with the upstream status for any other non-200 response.
+func (c *Client) CheckStock(ctx context.Context, sku string, qty int) error {
+	url := c.baseURL + "/stock/" + sku
+	level, err := httpc.GetJSON[stockLevel](c.httpClient, ctx, url)
 
-// PlaceHold calls POST /stock/{sku}/reserve and returns the hold ID and expiry.
-// Returns a *HoldError with StatusCode == 409 when stock is insufficient.
-// Returns a *HoldError with the upstream status for any other non-201 response.
-func (c *Client) PlaceHold(ctx context.Context, sku, cartID string, qty int) (holdID string, holdExpiry time.Time, err error) {
-	url := c.baseURL + "/stock/" + sku + "/reserve"
-	hold, err := httpc.PostJSON[holdResponse](c.httpClient, ctx, url, reserveRequest{CartID: cartID, Quantity: qty})
 	if err != nil {
 		var httpErr *httpc.HTTPError
 		if errors.As(err, &httpErr) {
-			return "", time.Time{}, &HoldError{StatusCode: httpErr.StatusCode, Detail: string(httpErr.Body)}
+			return &OutOfStockError{StatusCode: httpErr.StatusCode, Detail: string(httpErr.Body)}
 		}
-		return "", time.Time{}, fmt.Errorf("shopinventory.PlaceHold: %w", err)
+		return fmt.Errorf("stock check failed: %w", err)
 	}
-	return hold.HoldID, hold.ExpiresAt, nil
+
+	if level.AvailableQty < qty {
+		return &OutOfStockError{
+			StatusCode: 409,
+			Detail: fmt.Sprintf("available: %d, requested: %d", level.AvailableQty, qty),
+		}
+	}
+	return nil
 }

@@ -2,6 +2,9 @@ import os
 
 PORT: int = int(os.getenv("PORT", "7113"))
 
+# dev | qa | prod — controls log level (dev/qa: INFO+, prod: ERROR only)
+APP_ENV: str = os.getenv("APP_ENV", "dev").lower()
+
 SERVICE_NAME: str = "komodo-ai-guardrails-api"
 VERSION: str = "0.1.0"
 

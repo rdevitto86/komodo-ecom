@@ -60,10 +60,12 @@ components:
   schemas:
     CheckType:
       type: string
-      enum: [pii, obscenity, injection, toxicity]
+      enum: [pii, injection, deviation, coding, obscenity, toxicity]
       description: >
-        - pii: PII detection and redaction (rule-based)
-        - injection: Prompt injection pattern detection (rule-based)
+        - pii: PII detection and redaction in user input; coercion-to-reveal attempts (rule-based)
+        - injection: Instruction overrides, delimiter escapes, encoded payloads (rule-based)
+        - deviation: Persona override and jailbreak attempts (rule-based)
+        - coding: Out-of-scope code generation / execution requests (rule-based)
         - obscenity: Obscenity check (LLM-backed, stubbed)
         - toxicity: Toxicity check (LLM-backed, stubbed)
 
@@ -79,7 +81,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CheckType"
-          default: [pii, obscenity, injection, toxicity]
+          default: [pii, injection, deviation, coding, obscenity, toxicity]
           description: Which checks to run. Defaults to all.
 
     ModerateResponse:

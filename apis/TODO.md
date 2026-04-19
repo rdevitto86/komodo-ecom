@@ -209,6 +209,8 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 - [ ] **[L]** Subscribe to event-bus-api for async trigger events (`order.placed`, `order.shipped`, etc.)
 - [ ] **[L]** Store and load transactional email templates from S3 — support per-locale variants; templates managed separately from code
 - [ ] **[L]** Add template management for transactional messages
+- [ ] **[L]** Add unit tests for provider client and template rendering
+- [ ] **[L]** Add integration tests for email/SMS/push sending flows
 
 ---
 
@@ -221,6 +223,8 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 - [ ] **[L]** Implement `GET /me/loyalty` — points balance and tier status
 - [ ] **[L]** Implement `POST /me/loyalty/redeem` — apply points discount to a cart/order
 - [ ] **[L]** Design tier rules and rewards catalogue
+- [ ] **[L]** Add unit tests for points calculation and tier logic
+- [ ] **[L]** Add integration tests for event subscription and redemption flow
 
 ---
 
@@ -233,6 +237,8 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 - [ ] **[L]** Implement `PUT /me/reviews/{reviewId}` / `DELETE /me/reviews/{reviewId}`
 - [ ] **[L]** Implement rating aggregation (avg rating + count) — maintain in DynamoDB alongside reviews
 - [ ] **[L]** Add moderation queue for flagged reviews
+- [ ] **[L]** Add unit tests for rating aggregation and verified purchase validation
+- [ ] **[L]** Add integration tests for review CRUD operations
 
 ---
 
@@ -244,6 +250,8 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 - [ ] **[L]** Implement `GET /me/entitlements` — return active entitlements for JWT subject
 - [ ] **[L]** Implement `POST /internal/entitlements` — grant entitlement (called by order-api on purchase)
 - [ ] **[L]** Implement `DELETE /internal/entitlements/{id}` — revoke entitlement
+- [ ] **[L]** Add unit tests for entitlement validation and grant/revoke logic
+- [ ] **[L]** Add integration tests for entitlement CRUD operations
 
 ---
 
@@ -255,6 +263,8 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 - [ ] **[L]** Implement `GET /me/features` — bulk flag evaluation for authenticated user
 - [ ] **[L]** Implement internal CRUD for flag management (`POST/PUT/DELETE /internal/features/{key}`)
 - [ ] **[L]** Back flags with DynamoDB; cache evaluated results in Redis with short TTL
+- [ ] **[L]** Add unit tests for feature flag evaluation logic (context-based, percent rollout)
+- [ ] **[L]** Add integration tests for flag CRUD operations and cache behavior
 
 ---
 
@@ -286,6 +296,8 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 > Status: Stub — handler skeletons only. Backed by Bedrock/Claude API calls.
 
 - [ ] **[M]** Add local response cache for Bedrock/Claude API calls — cache by summary/query type with an expiry timestamp; serve cached result if not expired; refresh on weekly/biweekly schedule or when threshold exceeded; prevents repeated expensive LLM calls on every request
+- [ ] **[L]** Add unit tests for provider client and cache logic
+- [ ] **[L]** Add integration tests for insights endpoint with mocked Bedrock responses
 
 ---
 
@@ -293,6 +305,19 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 > Status: Not yet scaffolded. Handles promotions, discount logic, and first-order tracking.
 
 - [ ] **[M]** Track first-order flag per account — on `order.placed` event, record whether this is the account's first order (guest or registered); store in promotions DB as a boolean/timestamp record; used to gate first-order discount eligibility
+- [ ] **[L]** Add unit tests for discount calculation and first-order eligibility logic
+- [ ] **[L]** Add integration tests for promotion CRUD operations
+
+---
+
+## komodo-ssr-engine-svelte
+> Status: SvelteKit SSR engine for ecom UI. Routes, API endpoints, and server-side logic implemented.
+
+- [ ] **[M]** Import SDK httpclients for S3, auth, and cloudfront — replace current stub implementations with generated adapters from komodo-forge-sdk
+- [ ] **[L]** Add unit tests for Svelte components (+page, +layout files)
+- [ ] **[L]** Add unit tests for API route handlers (+server.ts files)
+- [ ] **[L]** Add unit tests for server-side logic (lib/server/*.ts: auth, S3, cache, cloudfront)
+- [ ] **[L]** Add integration tests for page rendering and API endpoints
 
 ---
 

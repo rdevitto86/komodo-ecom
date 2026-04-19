@@ -54,7 +54,7 @@ type itemResponse struct {
 // returning a CartItem snapshot populated with name, price, and primary image URL.
 // The returned snapshot has Quantity == 0; callers must set it before persisting.
 func (c *Client) GetItem(ctx context.Context, itemID, sku string) (*models.CartItem, error) {
-	item, err := httpc.GetJSON[itemResponse](c.httpClient, ctx, c.baseURL+"/item/"+sku)
+	item, err := httpc.GetJSON[itemResponse](c.httpClient, ctx, c.baseURL + "/item/" + sku)
 	if err != nil {
 		return nil, fmt.Errorf("shopitems.GetItem: %w", err)
 	}
@@ -94,12 +94,8 @@ func (c *Client) GetItem(ctx context.Context, itemID, sku string) (*models.CartI
 // or the first image URL if none is marked, or "" for an empty slice.
 func primaryImageFrom(images []itemImage) string {
 	for _, img := range images {
-		if img.IsPrimary {
-			return img.URL
-		}
+		if img.IsPrimary { return img.URL }
 	}
-	if len(images) > 0 {
-		return images[0].URL
-	}
+	if len(images) > 0 { return images[0].URL }
 	return ""
 }

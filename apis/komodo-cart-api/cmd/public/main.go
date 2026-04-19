@@ -98,12 +98,12 @@ func init() {
 
 func main() {
 	// Wire services.
-	guestTTL := mustParseInt64(os.Getenv("CART_GUEST_TTL_SEC"), 604800)
-	holdTTL  := mustParseInt64(os.Getenv("CART_HOLD_TTL_SEC"), 900)
-	shopCli  := shopitems.NewClient(os.Getenv("SHOP_ITEMS_API_URL"))
-	invCli   := shopinventory.NewClient(os.Getenv("INVENTORY_API_URL"))
-	guestSvc := service.NewGuestCartService(guestTTL, shopCli)
-	cartSvc  := service.NewCartService(holdTTL, shopCli, invCli, guestSvc)
+	guestTTL    := mustParseInt64(os.Getenv("CART_GUEST_TTL_SEC"), 604800)
+	checkoutTTL := mustParseInt64(os.Getenv("CART_HOLD_TTL_SEC"), 900)
+	shopCli     := shopitems.NewClient(os.Getenv("SHOP_ITEMS_API_URL"))
+	invCli      := shopinventory.NewClient(os.Getenv("INVENTORY_API_URL"))
+	guestSvc    := service.NewGuestCartService(guestTTL, shopCli, invCli)
+	cartSvc     := service.NewCartService(checkoutTTL, shopCli, invCli, guestSvc)
 
 	authReadMW := []func(http.Handler) http.Handler{
 		mw.RequestIDMiddleware,

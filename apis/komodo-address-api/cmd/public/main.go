@@ -6,11 +6,9 @@ import (
 	"time"
 
 	"komodo-address-api/internal/handlers"
-	"komodo-address-api/internal/provider"
 
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
 	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
-	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
@@ -50,26 +48,26 @@ func init() {
 }
 
 func main() {
-	stack := []func(http.Handler) http.Handler{
-		mw.RequestIDMiddleware,
-		mw.TelemetryMiddleware,
-		mw.RateLimiterMiddleware,
-		mw.CORSMiddleware,
-		mw.SecurityHeadersMiddleware,
-		mw.AuthMiddleware,
-		mw.NormalizationMiddleware,
-		mw.RuleValidationMiddleware,
-		mw.SanitizationMiddleware,
-	}
+	// stack := []func(http.Handler) http.Handler{
+	// 	mw.RequestIDMiddleware,
+	// 	mw.TelemetryMiddleware,
+	// 	mw.RateLimiterMiddleware,
+	// 	mw.CORSMiddleware,
+	// 	mw.SecurityHeadersMiddleware,
+	// 	mw.AuthMiddleware,
+	// 	mw.NormalizationMiddleware,
+	// 	mw.RuleValidationMiddleware,
+	// 	mw.SanitizationMiddleware,
+	// }
 
-	providerClient := provider.NewClient(os.Getenv("ADDRESS_PROVIDER_API_KEY"))
+	// providerClient := provider.NewClient(os.Getenv("ADDRESS_PROVIDER_API_KEY"))
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", handlers.Health)
-	mux.Handle("POST /addresses/validate", mw.Chain(handlers.Validate(providerClient), stack...))
-	mux.Handle("POST /addresses/normalize", mw.Chain(handlers.Normalize(providerClient), stack...))
-	mux.Handle("POST /addresses/geocode", mw.Chain(handlers.Geocode(providerClient), stack...))
+	// mux.Handle("POST /addresses/validate", mw.Chain(handlers.Validate(providerClient), stack...))
+	// mux.Handle("POST /addresses/normalize", mw.Chain(handlers.Normalize(providerClient), stack...))
+	// mux.Handle("POST /addresses/geocode", mw.Chain(handlers.Geocode(providerClient), stack...))
 
 	server := &http.Server{
 		Handler:           mux,

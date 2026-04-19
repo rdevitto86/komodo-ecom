@@ -1,6 +1,4 @@
-pub async fn health() -> &'static str {
-    "OK"
-}
+pub async fn health() -> &'static str { "OK" }
 
 #[cfg(test)]
 mod tests {
@@ -8,7 +6,6 @@ mod tests {
 
     #[tokio::test]
     async fn health_returns_ok() {
-        let result = health().await;
-        assert_eq!(result, "OK");
+        assert_eq!(health().await, "OK");
     }
 }

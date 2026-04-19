@@ -19,8 +19,6 @@ import (
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
 
-// errBadRequest and errBadGateway are CartError sentinels for generic HTTP errors
-// returned from the service layer. Handlers unwrap them to the correct HTTP status.
 var (
 	errBadRequest = models.CartError{Code: httpErr.ErrorCode{
 		ID:      httpErr.CodeID(httpErr.RangeGlobal, 1),
@@ -36,16 +34,16 @@ var (
 
 // CartService manages authenticated user carts stored in DynamoDB.
 type CartService struct {
-	holdTTL   int64
+	tokenTTL  int64
 	shopItems *shopitems.Client
 	inventory *shopinventory.Client
 	guestSvc  *GuestCartService
 }
 
-// NewCartService constructs a CartService.
-func NewCartService(holdTTL int64, shopItems *shopitems.Client, inv *shopinventory.Client, guest *GuestCartService) *CartService {
+// NewCartService constructs a CartService. tokenTTL is the Redis TTL for checkout tokens (seconds).
+func NewCartService(tokenTTL int64, shopItems *shopitems.Client, inv *shopinventory.Client, guest *GuestCartService) *CartService {
 	return &CartService{
-		holdTTL:   holdTTL,
+		tokenTTL:  tokenTTL,
 		shopItems: shopItems,
 		inventory: inv,
 		guestSvc:  guest,
@@ -105,11 +103,21 @@ func (s *CartService) Get(ctx context.Context, userID, guestCartID string) (*mod
 }
 
 // AddItem adds an item to the authenticated cart, fetching a product snapshot first.
+// Fails with OutOfStock if inventory reports insufficient available_qty.
 // If the item already exists its quantity is incremented additively.
 func (s *CartService) AddItem(ctx context.Context, userID string, req models.AddItemRequest) (*models.Cart, error) {
 	snapshot, err := s.shopItems.GetItem(ctx, req.ItemID, req.SKU)
 	if err != nil {
 		return nil, fmt.Errorf("service.Cart.AddItem: fetch snapshot: %w", err)
+	}
+
+	if os.Getenv("ENV") != "local" {
+		if err := s.inventory.CheckStock(ctx, req.SKU, req.Quantity); err != nil {
+			if oosErr, ok := err.(*shopinventory.OutOfStockError); ok && oosErr.StatusCode == 409 {
+				return nil, models.Err.OutOfStock
+			}
+			return nil, fmt.Errorf("service.Cart.AddItem: check stock: %w", errBadGateway)
+		}
 	}
 
 	exists, err := repo.ItemExists(ctx, userID, req.ItemID)
@@ -118,7 +126,6 @@ func (s *CartService) AddItem(ctx context.Context, userID string, req models.Add
 	}
 
 	if exists {
-		// Fetch current quantity to increment it.
 		cart, err := repo.GetCart(ctx, userID)
 		if err != nil {
 			return nil, fmt.Errorf("service.Cart.AddItem: get cart for qty: %w", err)
@@ -196,14 +203,14 @@ func (s *CartService) Clear(ctx context.Context, userID string) error {
 // checkoutRecord is stored in Redis at checkout:<token>.
 // Consumed one-time by order-api (GET + DELETE).
 type checkoutRecord struct {
-	UserID    string            `json:"user_id"`
-	CartID    string            `json:"cart_id"`
-	HoldIDs   map[string]string `json:"hold_ids"` // sku → holdId
-	ExpiresAt time.Time         `json:"expires_at"`
+	UserID    string    `json:"user_id"`
+	CartID    string    `json:"cart_id"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
-// Checkout places stock holds for every item in the cart, issues a checkout token,
-// and stores the token payload in Redis with TTL = holdTTL.
+// Checkout performs a final stock check on every cart item, then issues a checkout
+// token stored in Redis with TTL = tokenTTL. The stock check guards against OOS items
+// that slipped in via bugs or race conditions; it is not a hold.
 func (s *CartService) Checkout(ctx context.Context, userID string) (*models.CheckoutResponse, error) {
 	cart, err := repo.GetCart(ctx, userID)
 	if err != nil {
@@ -216,57 +223,41 @@ func (s *CartService) Checkout(ctx context.Context, userID string) (*models.Chec
 	}
 
 	isLocal := os.Getenv("ENV") == "local"
-	holdIDs := make(map[string]string, len(cart.Items))
 	var conflictSKUs []string
-	expiresAt := time.Now().UTC().Add(time.Duration(s.holdTTL) * time.Second)
 
-	for _, item := range cart.Items {
-		holdID, holdExpiry, err := s.inventory.PlaceHold(ctx, item.SKU, cart.ID, item.Quantity)
-		if err != nil {
-			var holdErr *shopinventory.HoldError
-			if he, ok := err.(*shopinventory.HoldError); ok && he.StatusCode == 409 {
-				holdErr = he
-				_ = holdErr
-				conflictSKUs = append(conflictSKUs, item.SKU)
-				continue
+	if !isLocal {
+		for _, item := range cart.Items {
+			if err := s.inventory.CheckStock(ctx, item.SKU, item.Quantity); err != nil {
+				if oosErr, ok := err.(*shopinventory.OutOfStockError); ok && oosErr.StatusCode == 409 {
+					conflictSKUs = append(conflictSKUs, item.SKU)
+					continue
+				}
+				return nil, fmt.Errorf("service.Cart.Checkout: check stock for sku %s: %w", item.SKU, errBadGateway)
 			}
-			// Network/unexpected error.
-			if isLocal {
-				// Local dev: synthesise a hold ID so checkout can proceed without inventory-api.
-				logger.Warn("service.Cart.Checkout: inventory hold failed in local mode, using synthetic holdID")
-				holdIDs[item.SKU] = uuid.NewString()
-				continue
-			}
-			return nil, fmt.Errorf("service.Cart.Checkout: place hold for sku %s: %w", item.SKU, errBadGateway)
 		}
-		if holdExpiry.Before(expiresAt) {
-			expiresAt = holdExpiry
-		}
-		holdIDs[item.SKU] = holdID
 	}
 
 	if len(conflictSKUs) > 0 {
-		detail := fmt.Sprintf("insufficient stock for SKUs: %v", conflictSKUs)
 		return nil, models.CartError{Code: httpErr.ErrorCode{
 			ID:      models.Err.CheckoutFailed.Code.ID,
 			Status:  models.Err.CheckoutFailed.Code.Status,
 			Message: models.Err.CheckoutFailed.Code.Message,
-			Detail:  detail,
+			Detail:  fmt.Sprintf("out of stock: %v", conflictSKUs),
 		}}
 	}
 
+	expiresAt := time.Now().UTC().Add(time.Duration(s.tokenTTL) * time.Second)
 	token := uuid.NewString()
 	record := checkoutRecord{
 		UserID:    userID,
 		CartID:    cart.ID,
-		HoldIDs:   holdIDs,
 		ExpiresAt: expiresAt,
 	}
 	data, err := json.Marshal(record)
 	if err != nil {
 		return nil, fmt.Errorf("service.Cart.Checkout: marshal checkout record: %w", err)
 	}
-	if err := elasticache.Set("checkout:"+token, string(data), s.holdTTL); err != nil {
+	if err := elasticache.Set("checkout:"+token, string(data), s.tokenTTL); err != nil {
 		return nil, fmt.Errorf("service.Cart.Checkout: store checkout token: %w", err)
 	}
 

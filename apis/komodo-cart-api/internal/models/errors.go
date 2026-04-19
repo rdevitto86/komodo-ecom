@@ -20,6 +20,7 @@ type CartAPIErrors struct {
 	ItemNotInCart  CartError
 	Expired        CartError
 	CheckoutFailed CartError
+	OutOfStock     CartError
 }
 
 var Err = CartAPIErrors{
@@ -27,4 +28,5 @@ var Err = CartAPIErrors{
 	ItemNotInCart:  CartError{Code: httpErr.ErrorCode{ID: httpErr.CodeID(httpErr.RangeCart, 2), Status: http.StatusNotFound, Message: "Item not in cart"}},
 	Expired:        CartError{Code: httpErr.ErrorCode{ID: httpErr.CodeID(httpErr.RangeCart, 3), Status: http.StatusGone, Message: "Cart expired"}},
 	CheckoutFailed: CartError{Code: httpErr.ErrorCode{ID: httpErr.CodeID(httpErr.RangeCart, 4), Status: http.StatusConflict, Message: "Checkout failed"}},
+	OutOfStock:     CartError{Code: httpErr.ErrorCode{ID: httpErr.CodeID(httpErr.RangeCart, 5), Status: http.StatusConflict, Message: "Item out of stock"}},
 }

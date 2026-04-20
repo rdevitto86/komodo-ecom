@@ -2,7 +2,7 @@ module komodo-shop-items-api
 
 go 1.26.2
 
-require github.com/rdevitto86/komodo-forge-sdk-go v0.1.0
+require github.com/rdevitto86/komodo-forge-sdk-go v0.6.0
 
 require (
 	github.com/aws/aws-lambda-go v1.54.0 // indirect
@@ -33,9 +33,5 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/redis/go-redis/v9 v9.17.0 // indirect
-	github.com/stretchr/testify v1.8.4 // indirect
-	golang.org/x/net v0.41.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -9,9 +9,9 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 ## komodo-auth-api
 > Status: MVP complete. Token issuing and validation work. Auth code flow and revocation storage missing.
 
-- [ ] **[M]** Persist revoked tokens to ElastiCache (TTL = token expiry) so `/oauth/revoke` is actually effective
-- [ ] **[M]** Store token JTI in ElastiCache on issue; check on introspect to detect reuse after revocation
-- [ ] **[M]** Check if refresh token is revoked in ElastiCache before issuing a new access token (`oauth_token_handler.go:173`)
+- [x] **[M]** Persist revoked tokens to ElastiCache (TTL = token expiry) so `/oauth/revoke` is actually effective
+- [x] **[M]** Store token JTI in ElastiCache on issue; check on introspect to detect reuse after revocation
+- [x] **[M]** Check if refresh token is revoked in ElastiCache before issuing a new access token (`oauth_token_handler.go:173`)
 - [ ] **[L]** Implement `authorization_code` grant flow (requires SvelteKit login UI to be live first)
 - [ ] **[L]** Add unit tests for token signing, validation, and introspection
 
@@ -20,8 +20,8 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 ## komodo-user-api
 > Status: Handlers and service layer implemented. Sub-item CRUD (addresses, payments, preferences) blocked on DynamoDB schema.
 
-- [ ] **[H]** Finalize DynamoDB single-table key schema in `docs/data-model.md` — unblocks all sub-item operations
-- [ ] **[H]** Wire `repo.CreateAddress` / `UpdateAddress` / `DeleteAddress` once schema is finalized
+- [x] **[H]** Finalize DynamoDB single-table key schema in `docs/data-model.md` — unblocks all sub-item operations
+- [x] **[H]** Wire `repo.CreateAddress` / `UpdateAddress` / `DeleteAddress` once schema is finalized
 - [ ] **[H]** Wire `repo.UpsertPayment` / `DeletePayment` once schema is finalized
 - [ ] **[H]** Wire `repo.UpdatePreferences` / `DeletePreferences` once schema is finalized
 - [ ] **[M]** Verify internal server ownership checks — confirm `resolveUserID` correctly rejects cross-user access on internal routes
@@ -32,11 +32,12 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 ## komodo-shop-items-api
 > Status: Fully implemented. S3-backed product catalog works. Suggestions endpoint is a stub.
 
-- [ ] **[M]** Replace stub recommendation logic in `GET /suggestions` with real logic (rule-based, ML, or simple bestsellers query)
+- [x] **[M]** Replace stub recommendation logic in `GET /suggestions` with real logic (rule-based, ML, or simple bestsellers query)
 - [ ] **[M]** Evaluate recommendation automation — assess whether user browsing/purchase history can drive `GET /suggestions` (rule-based first, ML later)
-- [ ] **[M]** Add `service_type` field to `ShopItem` model (`product | service | repair`) — repair items carry additional fields: `accepted_device_types`, `estimated_turnaround_days`, `warranty_on_repair`; update S3 schema and `openapi.yaml`
-- [ ] **[M]** Add `GET /services/repair` route — filter shop items by `service_type=repair`; return paginated repair service listings
-- [ ] **[M]** Add `GET /services/repair/{id}` route — single repair service detail (accepted devices, pricing, turnaround, warranty)
+- [x] **[M]** Add `service_type` field to `ShopItem` model (`product | service | repair`) — repair items carry additional fields: `accepted_device_types`, `estimated_turnaround_days`, `warranty_on_repair`; update S3 schema and `openapi.yaml`
+- [x] **[M]** Add `GET /services/repair` route — filter shop items by `service_type=repair`; return paginated repair service listings
+- [x] **[M]** Add `GET /services/repair/{id}** route — single repair service detail (accepted devices, pricing, turnaround, warranty)
+- [ ] **[M]** Relocate `/services/repair` routes to `komodo-order-reservations-api` — repair booking is a time-slot/appointment concern, not a catalog concern; shop-items-api should only expose repair *listings* (`service_type=repair`); the booking flow belongs in reservations-api; coordinate the route split before implementing either handler
 - [ ] **[L]** Add unit tests for S3 fetch and item parsing
 
 ---
@@ -68,15 +69,15 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 ## komodo-order-api
 > Status: Complete stub — `cmd/public/main.go` is an empty package declaration. Core purchase flow depends on this.
 
-- [ ] **[H]** Scaffold service: bootstrap (logger, secrets, DynamoDB, Redis), middleware stacks, dual-server (public + internal) ServeMux
-- [ ] **[H]** Implement `POST /me/orders` — consume checkout token from cart-api, confirm holds, write order to DynamoDB, publish `order.placed` event
+- [x] **[H]** Scaffold service: bootstrap (logger, secrets, DynamoDB, Redis), middleware stacks, dual-server (public + internal) ServeMux
+- [x] **[H]** Implement `POST /me/orders` — consume checkout token from cart-api, confirm holds, write order to DynamoDB, publish `order.placed` event
 - [ ] **[H]** Implement `GET /me/orders` — list authenticated user's orders (paginated)
 - [ ] **[H]** Implement `GET /me/orders/{orderId}` — get order detail
 - [ ] **[H]** Implement `POST /me/orders/{orderId}/cancel` — cancel order, release holds, trigger refund via payments-api
-- [ ] **[H]** Implement internal `GET /internal/orders/{orderId}` — for returns-api and payments-api lookups
+- [ ] **[H]** Implement internal `GET /internal/orders/{orderId}` — for returns and payments-api lookups
 - [ ] **[M]** Implement order status state machine: `pending → confirmed → shipped → delivered → cancelled`
 - [ ] **[M]** Publish `order.cancelled` and `order.fulfilled` events to event-bus-api
-- [ ] **[M]** Add idempotency on `POST /me/orders` to prevent double-order on retry
+- [x] **[M]** Add idempotency on `POST /me/orders` to prevent double-order on retry
 - [ ] **[L]** Add integration tests for order creation and cancellation flow
 
 ---
@@ -185,20 +186,6 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 
 ---
 
-## komodo-order-returns-api
-> Status: Complete stub — `main.go` is a 27-line comment block describing what to implement.
-
-- [ ] **[M]** Scaffold service: bootstrap, middleware stack, ServeMux routes
-- [ ] **[M]** Implement RMA creation (`POST /me/returns`) — validate order eligibility, create return record
-- [ ] **[M]** Implement RMA status tracking (`GET /me/returns`, `GET /me/returns/{returnId}`)
-- [ ] **[M]** Coordinate refund via payments-api on return approval
-- [ ] **[M]** Coordinate inventory restock via shop-inventory-api on return receipt
-- [ ] **[L]** Wire points reversal via loyalty-api on refund
-- [ ] **[L]** Trigger customer notification via communications-api on status change
-- [ ] **[L]** Add integration tests for RMA lifecycle
-
----
-
 ## komodo-communications-api
 > Status: Complete stub — directory exists but `main.go` is empty.
 
@@ -215,30 +202,20 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 ---
 
 ## komodo-loyalty-api
-> Status: Complete stub — `main.go` is an empty `func main() {}`.
+> Status: Routes wired (health + reviews stub). Will absorb loyalty points logic next.
 
-- [ ] **[L]** Scaffold service: bootstrap, middleware stack, ServeMux routes
+- [ ] **[L]** Scaffold service: bootstrap, middleware stack, ServeMux routes (loyalty + reviews endpoints)
 - [ ] **[L]** Implement points earn on `order.placed` event (subscribe via event-bus-api)
 - [ ] **[L]** Implement points reversal on `order.returned` event
 - [ ] **[L]** Implement `GET /me/loyalty` — points balance and tier status
 - [ ] **[L]** Implement `POST /me/loyalty/redeem` — apply points discount to a cart/order
 - [ ] **[L]** Design tier rules and rewards catalogue
-- [ ] **[L]** Add unit tests for points calculation and tier logic
-- [ ] **[L]** Add integration tests for event subscription and redemption flow
-
----
-
-## komodo-reviews-api
-> Status: Complete stub — `main.go` is a bare package declaration.
-
-- [ ] **[L]** Scaffold service: bootstrap, middleware stack, ServeMux routes
 - [ ] **[L]** Implement `POST /me/reviews` — submit a review (require verified purchase check via order-api)
-- [ ] **[L]** Implement `GET /items/{itemId}/reviews` — paginated review listing
-- [ ] **[L]** Implement `PUT /me/reviews/{reviewId}` / `DELETE /me/reviews/{reviewId}`
-- [ ] **[L]** Implement rating aggregation (avg rating + count) — maintain in DynamoDB alongside reviews
+- [ ] **[L]** Implement `GET /items/{itemId}/reviews` — paginated review listing with avg rating + count
+- [ ] **[L]** Implement `PUT/DELETE /me/reviews/{reviewId}` — edit and remove reviews
 - [ ] **[L]** Add moderation queue for flagged reviews
-- [ ] **[L]** Add unit tests for rating aggregation and verified purchase validation
-- [ ] **[L]** Add integration tests for review CRUD operations
+- [ ] **[L]** Add unit tests for points calculation, tier logic, and rating aggregation
+- [ ] **[L]** Add integration tests for event subscription, redemption, and review CRUD
 
 ---
 
@@ -280,10 +257,11 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 
 ---
 
-## komodo-statistics-api (NEW)
-> Status: Not yet created. Real-time ecom stats service — subscribes to event-bus-api and maintains aggregated stats in an in-memory SQLite DB.
+## komodo-statistics-api
+> Status: Scaffolded. Bootstrap, health check, middleware stacks, and route skeletons live. SQLite client is a placeholder pending SDK support.
 
-- [ ] **[M]** Scaffold service: bootstrap (logger, secrets, SQLite in-memory DB), dual-server (public + private) ServeMux, event-bus-api subscriber client; port 7111 (public), 7112 (private) — Analytics & Discovery block
+- [x] **[M]** Scaffold service: bootstrap (logger, secrets), dual-server (public + private) ServeMux, health check, route skeletons; port 7111 (public), 7112 (private) — Analytics & Discovery block
+- [ ] **[M]** Migrate SQLite client to `komodo-forge-sdk-go` managed package once SDK ships SQLite/RDS support — tracked in `internal/db/client.go`; add `modernc.org/sqlite` directly in the interim
 - [ ] **[M]** Subscribe to relevant event-bus-api events — `cart.item_added`, `cart.item_removed`, `order.placed`, `order.fulfilled`, `shop_item.viewed`; update stat counters in SQLite on each event
 - [ ] **[M]** Implement public stat routes — `GET /stats/items/{itemId}/in-cart` ("X users have this in cart"), `GET /stats/items/{itemId}/recently-bought` ("Y people bought this in the last month"), `GET /stats/items/{itemId}/frequently-bought-with` (co-purchase pairings); served to ecom UI via BFF
 - [ ] **[M]** Implement internal/admin stat routes — `GET /internal/stats/dashboard` and per-domain aggregates for admin dashboards and inter-API analytics consumers
@@ -323,10 +301,9 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 
 ## Cross-Cutting
 
-- [ ] **[H]** Finalize `user-api` DynamoDB single-table schema — unblocks addresses, payments, and preferences across the UI
+- [x] **[H]** Finalize `user-api` DynamoDB single-table schema — unblocks addresses, payments, and preferences across the UI
 - [ ] **[M]** Establish shared event type catalogue (`event-bus-api` has it defined but services aren't validating against it)
 - [ ] **[M]** Wire `support-api` escalation → `communications-api` once communications-api is scaffolded
-- [ ] **[M]** Typed config constants across Go services — replace sprinkled `os.Getenv("FOO")` calls with a per-service `internal/config` package (or shared SDK helper) exposing typed constants; centralizes the env-var surface, surfaces required-vs-optional vars, prevents typos
 - [ ] **[L]** Add `docs/data-model.md` to every API that uses DynamoDB (currently missing for most)
 - [ ] **[L]** Standardize `openapi.yaml` across all APIs (several stubs are missing or outdated)
 - [ ] **[L]** Write unit + integration tests for all services (`go test ./...` must pass; at minimum happy path + error cases per handler)
@@ -335,5 +312,6 @@ APIs are ordered by how soon the UI needs them to simulate a real backend.
 - [ ] **[M]** Wire outbound shipping to order fulfillment — `order-api` calls `shipping-api` `POST /shipping/labels/outbound` when order transitions to `shipped`; store tracking number and carrier on the order record
 - [ ] **[M]** Guest + registered account identity model — email (not phone) is the cross-DB correlation key for both guest and registered accounts; each account still has a unique `account_id` as the primary key; email must be stored consistently across user-api, auth-api, and promotions-api to enable unsubscribe preference management for guest accounts without requiring registration; do not use phone as a linking key (privacy risk)
 - [ ] **[M]** Reserve ports 7111–7113 in port allocation — 7111 `statistics-api` public, 7112 `statistics-api` private, 7113 `slm-api`; update CLAUDE.md port table when confirmed
+- [ ] **[L]** Evaluate merging `komodo-entitlements-api` + `komodo-features-api` into a single `komodo-platform-api` — both are empty stubs answering "is this user/client allowed to do X?"; they share access pattern, infra needs, and deployment cadence; only keep separate if ownership or release independence is required
 
 > **SDK extractions moved** — items previously listed here (HTTP client base, health handler, circuit breaker with call-site context, shared hashing utility) now live in `komodo-forge-sdk-go/TODO.md`. Service-side code migration to the generated adapters is tracked there alongside the codegen pipeline.

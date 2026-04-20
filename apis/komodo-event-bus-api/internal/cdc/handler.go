@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"komodo-event-bus-api/internal/config"
+
 	komodoEvents "github.com/rdevitto86/komodo-forge-sdk-go/events"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
@@ -29,7 +31,7 @@ func NewHandler(snsClient *sns.Client, topicARNPrefix string) *Handler {
 	return &Handler{
 		sns:            snsClient,
 		topicARNPrefix: topicARNPrefix,
-		env:            os.Getenv("ENV"),
+		env:            os.Getenv(config.ENV),
 	}
 }
 

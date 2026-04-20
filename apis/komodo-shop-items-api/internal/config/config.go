@@ -1,0 +1,25 @@
+package config
+
+const (
+	APP_NAME                  = "APP_NAME"
+	LOG_LEVEL                 = "LOG_LEVEL"
+	ENV                       = "ENV"
+	PORT                      = "PORT"
+	AWS_REGION                = "AWS_REGION"
+	AWS_ENDPOINT              = "AWS_ENDPOINT"
+	AWS_SECRET_PREFIX         = "AWS_SECRET_PREFIX"
+	AWS_SECRET_BATCH          = "AWS_SECRET_BATCH"
+	S3_ENDPOINT               = "S3_ENDPOINT"
+	S3_ACCESS_KEY             = "S3_ACCESS_KEY"
+	S3_SECRET_KEY             = "S3_SECRET_KEY"
+	S3_ITEMS_BUCKET           = "S3_ITEMS_BUCKET"
+	SHOP_ITEMS_API_CLIENT_ID  = "SHOP_ITEMS_API_CLIENT_ID"
+	SHOP_ITEMS_API_CLIENT_SECRET = "SHOP_ITEMS_API_CLIENT_SECRET"
+	IP_WHITELIST              = "IP_WHITELIST"
+	IP_BLACKLIST              = "IP_BLACKLIST"
+	MAX_CONTENT_LENGTH        = "MAX_CONTENT_LENGTH"
+	IDEMPOTENCY_TTL_SEC       = "IDEMPOTENCY_TTL_SEC"
+	RATE_LIMIT_RPS            = "RATE_LIMIT_RPS"
+	RATE_LIMIT_BURST          = "RATE_LIMIT_BURST"
+	BUCKET_TTL_SECOND         = "BUCKET_TTL_SECOND"
+)

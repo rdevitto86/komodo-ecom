@@ -1,10 +1,11 @@
 import { CloudFrontClient, CreateInvalidationCommand } from "@aws-sdk/client-cloudfront";
+import { AWS_REGION, CLOUDFRONT_DISTRIBUTION_ID } from '$lib/config';
 
 const cf = new CloudFrontClient({
-  region: process.env.AWS_REGION || "us-east-1"
+  region: process.env[AWS_REGION] || "us-east-1"
 });
 
-const DISTRIBUTION_ID = process.env.CLOUDFRONT_DISTRIBUTION_ID!;
+const DISTRIBUTION_ID = process.env[CLOUDFRONT_DISTRIBUTION_ID]!;
 
 export async function invalidateCloudFrontCache(paths: string[]) {
   if (!DISTRIBUTION_ID) {

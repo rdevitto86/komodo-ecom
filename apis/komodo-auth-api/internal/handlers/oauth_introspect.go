@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"komodo-auth-api/internal/oauth/tokens"
 	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
@@ -66,13 +67,17 @@ func OAuthIntrospectHandler(wtr http.ResponseWriter, req *http.Request) {
 	iat := int64(0)
 	if claims.IssuedAt != nil { iat = claims.IssuedAt.Unix() }
 
-	// TODO: Check if token is revoked in Elasticache
-	// if claims.ID != "" && elasticache.Exists("revoked:token:" + claims.ID) {
-	//     logger.Info("token has been revoked: " + claims.ID)
-	//     wtr.WriteHeader(http.StatusOK)
-	//     json.NewEncoder(wtr).Encode(IntrospectResponse{Active: false})
-	//     return
-	// }
+	if claims.ID != "" {
+		revoked, err := tokens.IsRevoked(claims.ID)
+		if err != nil {
+			logger.Warn("revocation check failed during introspect: " + err.Error())
+		} else if revoked {
+			logger.Info("introspected token is revoked: " + claims.ID)
+			wtr.WriteHeader(http.StatusOK)
+			json.NewEncoder(wtr).Encode(IntrospectResponse{Active: false})
+			return
+		}
+	}
 
 	logger.Info("token introspection successful for subject: " + claims.Subject)
 

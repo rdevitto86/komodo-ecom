@@ -1,3 +1,3 @@
 package handlers
 
-// TODO: Add tests for oauth_token_handler.go
+// TODO: Add tests for oauth_token.go

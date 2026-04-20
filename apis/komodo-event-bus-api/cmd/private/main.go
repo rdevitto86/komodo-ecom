@@ -8,10 +8,12 @@ import (
 
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
 	cryptoJWT "github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
+	"github.com/rdevitto86/komodo-forge-sdk-go/http/handlers/health"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
+	"komodo-event-bus-api/internal/config"
 	"komodo-event-bus-api/internal/relay"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -20,28 +22,28 @@ import (
 
 func init() {
 	logger.Init(
-		os.Getenv("APP_NAME"),
-		os.Getenv("LOG_LEVEL"),
-		os.Getenv("ENV"),
+		os.Getenv(config.APP_NAME),
+		os.Getenv(config.LOG_LEVEL),
+		os.Getenv(config.ENV),
 	)
 }
 
 func main() {
 	smCfg := awsSM.Config{
-		Region:   os.Getenv("AWS_REGION"),
-		Endpoint: os.Getenv("AWS_ENDPOINT"),
-		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
-		Batch:    os.Getenv("AWS_SECRET_BATCH"),
+		Region:   os.Getenv(config.AWS_REGION),
+		Endpoint: os.Getenv(config.AWS_ENDPOINT),
+		Prefix:   os.Getenv(config.AWS_SECRET_PREFIX),
+		Batch:    os.Getenv(config.AWS_SECRET_BATCH),
 		Keys: []string{
-			"SNS_TOPIC_ARN_PREFIX",
-			"JWT_PUBLIC_KEY",
-			"JWT_PRIVATE_KEY",
-			"JWT_ISSUER",
-			"JWT_AUDIENCE",
-			"JWT_KID",
-			"MAX_CONTENT_LENGTH",
-			"RATE_LIMIT_RPS",
-			"RATE_LIMIT_BURST",
+			config.SNS_TOPIC_ARN_PREFIX,
+			config.JWT_PUBLIC_KEY,
+			config.JWT_PRIVATE_KEY,
+			config.JWT_ISSUER,
+			config.JWT_AUDIENCE,
+			config.JWT_KID,
+			config.MAX_CONTENT_LENGTH,
+			config.RATE_LIMIT_RPS,
+			config.RATE_LIMIT_BURST,
 		},
 	}
 	if err := awsSM.Bootstrap(smCfg); err != nil {
@@ -55,7 +57,7 @@ func main() {
 	}
 
 	cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
-		awsconfig.WithRegion(os.Getenv("AWS_REGION")),
+		awsconfig.WithRegion(os.Getenv(config.AWS_REGION)),
 	)
 	if err != nil {
 		logger.Fatal("failed to load AWS config", err)
@@ -63,7 +65,7 @@ func main() {
 	}
 
 	var snsClient *sns.Client
-	if endpoint := os.Getenv("AWS_ENDPOINT"); endpoint != "" {
+	if endpoint := os.Getenv(config.AWS_ENDPOINT); endpoint != "" {
 		snsClient = sns.NewFromConfig(cfg, func(o *sns.Options) {
 			o.BaseEndpoint = &endpoint
 		})
@@ -71,7 +73,7 @@ func main() {
 		snsClient = sns.NewFromConfig(cfg)
 	}
 
-	pub := relay.NewPublisher(snsClient, mustConfig("SNS_TOPIC_ARN_PREFIX"))
+	pub := relay.NewPublisher(snsClient, mustConfig(config.SNS_TOPIC_ARN_PREFIX))
 
 	internalMW := []func(http.Handler) http.Handler{
 		mw.RequestIDMiddleware,
@@ -83,7 +85,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", relay.HealthHandler)
+	mux.HandleFunc("GET /health", health.HealthHandler)
 	mux.Handle("POST /events", mw.Chain(pub.PublishEvent, internalMW...))
 
 	server := &http.Server{
@@ -95,7 +97,7 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	srv.Run(server, os.Getenv("PORT"), 10*time.Second)
+	srv.Run(server, os.Getenv(config.PORT_PRIVATE), 10*time.Second)
 }
 
 func mustConfig(key string) string {

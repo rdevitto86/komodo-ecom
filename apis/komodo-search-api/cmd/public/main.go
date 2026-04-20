@@ -5,35 +5,37 @@ import (
 	"os"
 	"time"
 
+	"komodo-search-api/internal/config"
+	"komodo-search-api/internal/handlers"
+
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
+	"github.com/rdevitto86/komodo-forge-sdk-go/http/handlers/health"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
-
-	"komodo-search-api/internal/handlers"
 )
 
 func init() {
-	logger.Init(os.Getenv("APP_NAME"), os.Getenv("LOG_LEVEL"), os.Getenv("ENV"))
+	logger.Init(os.Getenv(config.APP_NAME), os.Getenv(config.LOG_LEVEL), os.Getenv(config.ENV))
 }
 
 func main() {
 	smCfg := awsSM.Config{
-		Region:   os.Getenv("AWS_REGION"),
-		Endpoint: os.Getenv("AWS_ENDPOINT"),
-		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
-		Batch:    os.Getenv("AWS_SECRET_BATCH"),
+		Region:   os.Getenv(config.AWS_REGION),
+		Endpoint: os.Getenv(config.AWS_ENDPOINT),
+		Prefix:   os.Getenv(config.AWS_SECRET_PREFIX),
+		Batch:    os.Getenv(config.AWS_SECRET_BATCH),
 		Keys: []string{
-			"SEARCH_API_CLIENT_ID",
-			"SEARCH_API_CLIENT_SECRET",
-			"TYPESENSE_HOST",
-			"TYPESENSE_PORT",
-			"TYPESENSE_API_KEY",
-			"TYPESENSE_COLLECTION",
-			"IP_WHITELIST",
-			"IP_BLACKLIST",
-			"RATE_LIMIT_RPS",
-			"RATE_LIMIT_BURST",
+			config.SEARCH_API_CLIENT_ID,
+			config.SEARCH_API_CLIENT_SECRET,
+			config.TYPESENSE_HOST,
+			config.TYPESENSE_PORT,
+			config.TYPESENSE_API_KEY,
+			config.TYPESENSE_COLLECTION,
+			config.IP_WHITELIST,
+			config.IP_BLACKLIST,
+			config.RATE_LIMIT_RPS,
+			config.RATE_LIMIT_BURST,
 		},
 	}
 	if err := awsSM.Bootstrap(smCfg); err != nil {
@@ -64,7 +66,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handlers.HealthHandler)
+	mux.HandleFunc("GET /health", health.HealthHandler)
 	mux.Handle("GET /search", mw.Chain(http.HandlerFunc(handlers.Search), searchMW...))
 
 	// TODO(typesense): add index management routes (internal only):
@@ -72,7 +74,7 @@ func main() {
 	//   DELETE /internal/index     — drop and recreate collection (for schema changes)
 
 	server := &http.Server{
-		Addr:              ":" + os.Getenv("PORT"),
+		Addr:              ":" + os.Getenv(config.PORT),
 		Handler:           mux,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -81,5 +83,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	srv.Run(server, os.Getenv("PORT"), 30*time.Second)
+	srv.Run(server, os.Getenv(config.PORT), 30*time.Second)
 }

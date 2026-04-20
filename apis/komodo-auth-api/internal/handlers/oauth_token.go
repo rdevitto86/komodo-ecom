@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"komodo-auth-api/internal/registry"
+	"komodo-auth-api/internal/oauth/clients"
+	"komodo-auth-api/internal/oauth/tokens"
 	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
 	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/oauth"
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
@@ -90,7 +91,7 @@ func handleClientCredentials(wtr http.ResponseWriter, req *http.Request, reqBody
 		return
 	}
 
-	if !registry.Validate(reqBody.ClientID, reqBody.ClientSecret) {
+	if !clients.Validate(reqBody.ClientID, reqBody.ClientSecret) {
 		logger.Error("invalid client credentials for: "+reqBody.ClientID, fmt.Errorf("invalid client credentials"))
 		httpErr.SendError(
 			wtr, req, httpErr.Auth.InvalidClientCredentials, httpErr.WithDetail("invalid client credentials"),
@@ -104,7 +105,7 @@ func handleClientCredentials(wtr http.ResponseWriter, req *http.Request, reqBody
 			httpErr.SendError(wtr, req, httpErr.Auth.InvalidScope, httpErr.WithDetail("invalid scope: "+reqBody.Scope))
 			return
 		}
-		rec, _ := registry.Get(reqBody.ClientID)
+		rec, _ := clients.Get(reqBody.ClientID)
 		if !rec.HasScope(reqBody.Scope) {
 			logger.Error("scope not permitted for client: "+reqBody.ClientID, fmt.Errorf("scope not permitted"))
 			httpErr.SendError(wtr, req, httpErr.Auth.InsufficientScope, httpErr.WithDetail("client not permitted to request scope: "+reqBody.Scope))
@@ -135,7 +136,13 @@ func handleClientCredentials(wtr http.ResponseWriter, req *http.Request, reqBody
 		return
 	}
 
-	// TODO: Store token JTI in Elasticache for tracking/revocation
+	// Parse JTI from the signed token so we can record it for future revocation checks.
+	issuedClaims, err := jwt.ParseClaims(accessToken)
+	if err == nil && issuedClaims.ID != "" {
+		if storeErr := tokens.StoreIssued(issuedClaims.ID, accessExpiresIn); storeErr != nil {
+			logger.Warn("failed to store issued JTI in cache: " + storeErr.Error())
+		}
+	}
 
 	wtr.WriteHeader(http.StatusOK)
 	json.NewEncoder(wtr).Encode(TokenResponse{
@@ -170,7 +177,19 @@ func handleRefreshToken(wtr http.ResponseWriter, req *http.Request, reqBody *Tok
 		return
 	}
 
-	// TODO: Check if refresh token is revoked in Elasticache
+	if claims.ID != "" {
+		revoked, err := tokens.IsRevoked(claims.ID)
+		if err != nil {
+			logger.Warn("revocation check failed, denying refresh: " + err.Error())
+			httpErr.SendError(wtr, req, httpErr.Global.Internal, httpErr.WithDetail("revocation check unavailable"))
+			return
+		}
+		if revoked {
+			logger.Info("refresh token is revoked: " + claims.ID)
+			httpErr.SendError(wtr, req, httpErr.Auth.InvalidToken, httpErr.WithDetail("refresh token has been revoked"))
+			return
+		}
+	}
 
 	// Extract subject and scopes from claims
 	clientID := claims.Subject
@@ -210,7 +229,7 @@ func handleRefreshToken(wtr http.ResponseWriter, req *http.Request, reqBody *Tok
 }
 
 // Handles authorization code exchange (RFC 6749 Section 4.1)
-func handleAuthorizationCode(wtr http.ResponseWriter, req *http.Request, reqBody *TokenRequest) {
+func handleAuthorizationCode(wtr http.ResponseWriter, req *http.Request, _ *TokenRequest) {
 	// TODO: Implement authorization code flow
 	// 1. Validate code against stored authorization grants
 	// 2. Verify redirect_uri matches original request

@@ -1,0 +1,21 @@
+package config
+
+const (
+	APP_NAME                  = "APP_NAME"
+	LOG_LEVEL                 = "LOG_LEVEL"
+	ENV                       = "ENV"
+	PORT                      = "PORT"
+	AWS_REGION                = "AWS_REGION"
+	AWS_ENDPOINT              = "AWS_ENDPOINT"
+	AWS_SECRET_PREFIX         = "AWS_SECRET_PREFIX"
+	AWS_SECRET_BATCH          = "AWS_SECRET_BATCH"
+	ANTHROPIC_API_KEY         = "ANTHROPIC_API_KEY"
+	SUPPORT_API_CLIENT_ID     = "SUPPORT_API_CLIENT_ID"
+	SUPPORT_API_CLIENT_SECRET = "SUPPORT_API_CLIENT_SECRET"
+	IP_WHITELIST              = "IP_WHITELIST"
+	IP_BLACKLIST              = "IP_BLACKLIST"
+	RATE_LIMIT_RPS            = "RATE_LIMIT_RPS"
+	RATE_LIMIT_BURST          = "RATE_LIMIT_BURST"
+	CHAT_SESSION_TTL_DAYS     = "CHAT_SESSION_TTL_DAYS"
+	CHAT_MAX_HISTORY          = "CHAT_MAX_HISTORY"
+)

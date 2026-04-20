@@ -15,6 +15,7 @@ tags:
   - name: Health
   - name: Catalog
   - name: Inventory
+  - name: Repair
 
 paths:
 
@@ -63,6 +64,61 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/Product"
                   - $ref: "#/components/schemas/Service"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /services/repair:
+    get:
+      tags: [Repair]
+      summary: List all repair services
+      operationId: getRepairServices
+      security: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: 1-based page number
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Items per page
+      responses:
+        "200":
+          description: Paginated list of repair services
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepairServicesResponse"
+
+  /services/repair/{id}:
+    get:
+      tags: [Repair]
+      summary: Get a single repair service by ID
+      operationId: getRepairService
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Catalog ID of the repair service (matches SKU)
+      responses:
+        "200":
+          description: Repair service details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -551,6 +607,15 @@ components:
           items:
             type: string
 
+    ServiceType:
+      type: string
+      description: |
+        Classifies the catalog item:
+        - product: a physical or digital product
+        - service: a bookable service (e.g. appointment, installation)
+        - repair: a device repair service (includes repair-specific fields)
+      enum: [product, service, repair]
+
     Service:
       type: object
       required: [id, slug, name, description, category, status, price, locationTypes]
@@ -625,6 +690,40 @@ components:
         updatedAt:
           type: string
           format: date-time
+        service_type:
+          $ref: "#/components/schemas/ServiceType"
+        accepted_device_types:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: Device types accepted for repair (repair only)
+        estimated_turnaround_days:
+          type: integer
+          nullable: true
+          description: Estimated number of days to complete the repair (repair only)
+        warranty_on_repair:
+          type: string
+          nullable: true
+          description: Warranty terms covering the completed repair (repair only)
+
+    RepairServicesResponse:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Service"
+        total:
+          type: integer
+          description: Total number of repair services (before pagination)
+        page:
+          type: integer
+          description: Current 1-based page number
+        limit:
+          type: integer
+          description: Items per page used for this response
 
     InventoryItem:
       type: object
@@ -665,7 +764,12 @@ components:
           type: array
           items:
             type: string
-          description: SKUs of items currently in cart or recently viewed
+          description: SKUs of items currently in cart or recently viewed (context signal — not excluded from results)
+        exclude:
+          type: array
+          items:
+            type: string
+          description: SKUs to omit from suggestions (e.g. items already in cart that should not be repeated)
         categories:
           type: array
           items:

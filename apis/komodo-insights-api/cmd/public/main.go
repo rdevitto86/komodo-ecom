@@ -1,6 +1,7 @@
 package main
 
 import (
+	"komodo-insights-api/internal/config"
 	"komodo-insights-api/internal/handlers"
 	"komodo-insights-api/internal/service"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
 	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
+	"github.com/rdevitto86/komodo-forge-sdk-go/http/handlers/health"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
@@ -18,39 +20,39 @@ import (
 // Order matters: SM must run before JWT (needs JWT_PUBLIC_KEY).
 func init() {
 	logger.Init(
-		os.Getenv("APP_NAME"),
-		os.Getenv("LOG_LEVEL"),
-		os.Getenv("ENV"),
+		os.Getenv(config.APP_NAME),
+		os.Getenv(config.LOG_LEVEL),
+		os.Getenv(config.ENV),
 	)
 
 	smCfg := awsSM.Config{
-		Region:   os.Getenv("AWS_REGION"),
-		Endpoint: os.Getenv("AWS_ENDPOINT"),
-		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
-		Batch:    os.Getenv("AWS_SECRET_BATCH"),
+		Region:   os.Getenv(config.AWS_REGION),
+		Endpoint: os.Getenv(config.AWS_ENDPOINT),
+		Prefix:   os.Getenv(config.AWS_SECRET_PREFIX),
+		Batch:    os.Getenv(config.AWS_SECRET_BATCH),
 		Keys: []string{
 			// LLM backend — provider-agnostic names; concrete impl reads these at startup.
 			// LLM_PROVIDER_URL is empty for hosted APIs (Anthropic, Bedrock); set for on-prem.
-			"LLM_API_KEY",
-			"LLM_PROVIDER_URL",
+			config.LLM_API_KEY,
+			config.LLM_PROVIDER_URL,
 
 			// JWT — public key only needed (token validation, not signing).
 			// JWT_PRIVATE_KEY included because InitializeKeys() requires both to be present.
-			"JWT_PUBLIC_KEY",
-			"JWT_PRIVATE_KEY",
-			"JWT_AUDIENCE",
-			"JWT_ISSUER",
-			"JWT_KID",
+			config.JWT_PUBLIC_KEY,
+			config.JWT_PRIVATE_KEY,
+			config.JWT_AUDIENCE,
+			config.JWT_ISSUER,
+			config.JWT_KID,
 
 			// Access controls
-			"IP_WHITELIST",
-			"IP_BLACKLIST",
+			config.IP_WHITELIST,
+			config.IP_BLACKLIST,
 
 			// Traffic shaping
-			"MAX_CONTENT_LENGTH",
-			"RATE_LIMIT_RPS",
-			"RATE_LIMIT_BURST",
-			"BUCKET_TTL_SECOND",
+			config.MAX_CONTENT_LENGTH,
+			config.RATE_LIMIT_RPS,
+			config.RATE_LIMIT_BURST,
+			config.BUCKET_TTL_SECOND,
 		},
 	}
 	if err := awsSM.Bootstrap(smCfg); err != nil {
@@ -85,7 +87,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handlers.HealthHandler)
+	mux.HandleFunc("GET /health", health.HealthHandler)
 
 	mux.Handle("GET /insights/items/{itemId}/summary", mw.Chain(http.HandlerFunc(handlers.GetItemSummary), readMW...))
 	mux.Handle("GET /insights/items/{itemId}/sentiment", mw.Chain(http.HandlerFunc(handlers.GetItemSentiment), readMW...))
@@ -100,5 +102,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	srv.Run(server, os.Getenv("PORT"), 30*time.Second)
+	srv.Run(server, os.Getenv(config.PORT), 30*time.Second)
 }

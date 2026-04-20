@@ -5,7 +5,10 @@ import (
 	"os"
 	"time"
 
+	"komodo-support-api/internal/config"
+
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
+	"github.com/rdevitto86/komodo-forge-sdk-go/http/handlers/health"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
@@ -16,25 +19,25 @@ import (
 )
 
 func init() {
-	logger.Init(os.Getenv("APP_NAME"), os.Getenv("LOG_LEVEL"), os.Getenv("ENV"))
+	logger.Init(os.Getenv(config.APP_NAME), os.Getenv(config.LOG_LEVEL), os.Getenv(config.ENV))
 }
 
 func main() {
 	smCfg := awsSM.Config{
-		Region:   os.Getenv("AWS_REGION"),
-		Endpoint: os.Getenv("AWS_ENDPOINT"),
-		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
-		Batch:    os.Getenv("AWS_SECRET_BATCH"),
+		Region:   os.Getenv(config.AWS_REGION),
+		Endpoint: os.Getenv(config.AWS_ENDPOINT),
+		Prefix:   os.Getenv(config.AWS_SECRET_PREFIX),
+		Batch:    os.Getenv(config.AWS_SECRET_BATCH),
 		Keys: []string{
-			"ANTHROPIC_API_KEY",
-			"SUPPORT_API_CLIENT_ID",
-			"SUPPORT_API_CLIENT_SECRET",
-			"IP_WHITELIST",
-			"IP_BLACKLIST",
-			"RATE_LIMIT_RPS",
-			"RATE_LIMIT_BURST",
-			"CHAT_SESSION_TTL_DAYS",
-			"CHAT_MAX_HISTORY",
+			config.ANTHROPIC_API_KEY,
+			config.SUPPORT_API_CLIENT_ID,
+			config.SUPPORT_API_CLIENT_SECRET,
+			config.IP_WHITELIST,
+			config.IP_BLACKLIST,
+			config.RATE_LIMIT_RPS,
+			config.RATE_LIMIT_BURST,
+			config.CHAT_SESSION_TTL_DAYS,
+			config.CHAT_MAX_HISTORY,
 		},
 	}
 	if err := awsSM.Bootstrap(smCfg); err != nil {
@@ -47,7 +50,7 @@ func main() {
 
 	// LLMProvider is swappable — default is Anthropic Haiku 4.5.
 	// To try a different provider, implement service.LLMProvider and inject here.
-	llm := service.NewAnthropicProvider(os.Getenv("ANTHROPIC_API_KEY"))
+	llm := service.NewAnthropicProvider(os.Getenv(config.ANTHROPIC_API_KEY))
 	chatSvc := service.NewChatService(llm, chatRepo)
 
 	chatHandler := handlers.NewChatHandler(chatSvc, chatRepo)
@@ -72,7 +75,7 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /health", handlers.HealthHandler)
+	mux.HandleFunc("GET /health", health.HealthHandler)
 
 	// Session management
 	mux.Handle("POST /chat/session", mw.Chain(sessionHandler.CreateSession, baseMW...))
@@ -89,7 +92,7 @@ func main() {
 	mux.Handle("DELETE /me/chat/history", mw.Chain(chatHandler.DeleteHistory, protectedMW...))
 
 	server := &http.Server{
-		Addr:              ":" + os.Getenv("PORT"),
+		Addr:              ":" + os.Getenv(config.PORT),
 		Handler:           mux,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second, // longer for AI responses
@@ -98,5 +101,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	srv.Run(server, os.Getenv("PORT"), 15*time.Second)
+	srv.Run(server, os.Getenv(config.PORT), 15*time.Second)
 }

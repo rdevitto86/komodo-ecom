@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 
+	"komodo-event-bus-api/internal/config"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	snsTypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
@@ -23,7 +25,7 @@ func NewPublisher(snsClient *sns.Client, topicARNPrefix string) *Publisher {
 	return &Publisher{
 		sns:            snsClient,
 		topicARNPrefix: topicARNPrefix,
-		env:            os.Getenv("ENV"),
+		env:            os.Getenv(config.ENV),
 	}
 }
 

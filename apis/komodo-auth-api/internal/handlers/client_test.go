@@ -1,3 +1,3 @@
 package handlers
 
-// TODO: Add tests for client_handler.go
+// TODO: Add tests for client.go

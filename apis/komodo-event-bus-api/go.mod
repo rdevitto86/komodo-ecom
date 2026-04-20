@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.41.4
 	github.com/aws/aws-sdk-go-v2/config v1.32.12
 	github.com/aws/aws-sdk-go-v2/service/sns v1.39.14
-	github.com/rdevitto86/komodo-forge-sdk-go v0.1.0
+	github.com/rdevitto86/komodo-forge-sdk-go v0.6.0
 )
 
 require (
@@ -31,9 +31,5 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/redis/go-redis/v9 v9.17.0 // indirect
-	github.com/stretchr/testify v1.8.4 // indirect
-	golang.org/x/net v0.41.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

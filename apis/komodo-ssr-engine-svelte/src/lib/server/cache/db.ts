@@ -1,8 +1,9 @@
 import Database from 'better-sqlite3';
 import { logger } from '$lib/logger';
 import path from 'path';
+import { SQLITE_DB_PATH as SQLITE_DB_PATH_KEY } from '$lib/config';
 
-export const DB_PATH = process.env.SQLITE_DB_PATH || path.join(process.cwd(), 'data', 'template-cache.db');
+export const DB_PATH = process.env[SQLITE_DB_PATH_KEY] || path.join(process.cwd(), 'data', 'template-cache.db');
 
 // ── Read-only connection for the main thread ────────────────────────────────
 // The writer worker thread owns the read-write connection.

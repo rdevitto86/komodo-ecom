@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"time"
 
+	"komodo-support-api/internal/config"
+
 	"github.com/google/uuid"
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
@@ -99,7 +101,7 @@ func setSessionCookie(wtr http.ResponseWriter, sessionID string, expires time.Ti
 }
 
 func sessionTTLDays() int {
-	if v := os.Getenv("CHAT_SESSION_TTL_DAYS"); v != "" {
+	if v := os.Getenv(config.CHAT_SESSION_TTL_DAYS); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			return n
 		}

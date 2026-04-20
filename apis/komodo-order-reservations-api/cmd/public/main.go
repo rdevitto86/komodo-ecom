@@ -5,33 +5,35 @@ import (
 	"os"
 	"time"
 
+	"komodo-order-reservations-api/internal/config"
+	"komodo-order-reservations-api/internal/handlers"
+
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
+	"github.com/rdevitto86/komodo-forge-sdk-go/http/handlers/health"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
-
-	"komodo-order-reservations-api/internal/handlers"
 )
 
 func init() {
-	logger.Init(os.Getenv("APP_NAME"), os.Getenv("LOG_LEVEL"), os.Getenv("ENV"))
+	logger.Init(os.Getenv(config.APP_NAME), os.Getenv(config.LOG_LEVEL), os.Getenv(config.ENV))
 }
 
 func main() {
 	smCfg := awsSM.Config{
-		Region:   os.Getenv("AWS_REGION"),
-		Endpoint: os.Getenv("AWS_ENDPOINT"),
-		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
-		Batch:    os.Getenv("AWS_SECRET_BATCH"),
+		Region:   os.Getenv(config.AWS_REGION),
+		Endpoint: os.Getenv(config.AWS_ENDPOINT),
+		Prefix:   os.Getenv(config.AWS_SECRET_PREFIX),
+		Batch:    os.Getenv(config.AWS_SECRET_BATCH),
 		Keys: []string{
-			"RESERVATIONS_API_CLIENT_ID",
-			"RESERVATIONS_API_CLIENT_SECRET",
-			"DYNAMODB_SLOTS_TABLE",
-			"DYNAMODB_BOOKINGS_TABLE",
-			"IP_WHITELIST",
-			"IP_BLACKLIST",
-			"RATE_LIMIT_RPS",
-			"RATE_LIMIT_BURST",
+			config.RESERVATIONS_API_CLIENT_ID,
+			config.RESERVATIONS_API_CLIENT_SECRET,
+			config.DYNAMODB_SLOTS_TABLE,
+			config.DYNAMODB_BOOKINGS_TABLE,
+			config.IP_WHITELIST,
+			config.IP_BLACKLIST,
+			config.RATE_LIMIT_RPS,
+			config.RATE_LIMIT_BURST,
 			// TODO: add BOOKING_HOLD_TTL_SECONDS when checkout flow (Option A) is implemented
 		},
 	}
@@ -63,7 +65,7 @@ func main() {
 	)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handlers.HealthHandler)
+	mux.HandleFunc("GET /health", health.HealthHandler)
 
 	mux.Handle("GET /slots", mw.Chain(http.HandlerFunc(handlers.GetAvailableSlots), slotMW...))
 	mux.Handle("GET /slots/{date}", mw.Chain(http.HandlerFunc(handlers.GetSlotsByDate), slotMW...))
@@ -78,7 +80,7 @@ func main() {
 	// Should be on a separate internal port or protected by internal auth middleware.
 
 	server := &http.Server{
-		Addr:              ":" + os.Getenv("PORT"),
+		Addr:              ":" + os.Getenv(config.PORT),
 		Handler:           mux,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -87,5 +89,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	srv.Run(server, os.Getenv("PORT"), 30*time.Second)
+	srv.Run(server, os.Getenv(config.PORT), 30*time.Second)
 }

@@ -1,0 +1,377 @@
+openapi: 3.0.3
+
+info:
+  title: Komodo Statistics API
+  description: |
+    Aggregates domain event data from event-bus-api into real-time counters
+    and social-proof stats (e.g. "X in carts", "500+ bought last month").
+    Public routes serve anonymous UI banners. Private routes receive events
+    from event-bus-api and expose admin/inter-service aggregates.
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:7111
+    description: Public (local dev)
+  - url: http://localhost:7112
+    description: Private / internal (local dev)
+
+tags:
+  - name: Health
+    description: Liveness probes
+  - name: Stats
+    description: Public social-proof counters for UI display
+  - name: Internal
+    description: Event ingestion and admin aggregates (service-to-service only)
+
+paths:
+
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is alive
+
+  # ---------------------------------------------------------------------------
+  # Public stat reads — served to UI for banners, no auth required
+  # ---------------------------------------------------------------------------
+  /stats/items/{itemId}/in-cart:
+    get:
+      tags: [Stats]
+      summary: How many active carts contain this item
+      operationId: getItemInCartCount
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Cart count for item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemCartStat"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /stats/items/{itemId}/recently-bought:
+    get:
+      tags: [Stats]
+      summary: Purchase count for item over a rolling window
+      operationId: getItemRecentlyBought
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+        - name: period
+          in: query
+          description: Rolling window (default 30d)
+          schema:
+            type: string
+            enum: [7d, 30d, 90d]
+            default: 30d
+      responses:
+        "200":
+          description: Purchase count for item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemPurchaseStat"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /stats/items/{itemId}/frequently-bought-with:
+    get:
+      tags: [Stats]
+      summary: Items frequently co-purchased with this item
+      operationId: getFrequentlyBoughtWith
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+      responses:
+        "200":
+          description: Co-purchase pairings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrequentlyBoughtWithResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /stats/trending:
+    get:
+      tags: [Stats]
+      summary: Trending items across the catalog
+      operationId: getTrending
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [1h, 24h, 7d]
+            default: 24h
+      responses:
+        "200":
+          description: Trending item list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrendingResponse"
+
+  # ---------------------------------------------------------------------------
+  # Private / internal — service-to-service only
+  # ---------------------------------------------------------------------------
+  /internal/events:
+    post:
+      tags: [Internal]
+      summary: Ingest a domain event from event-bus-api
+      operationId: ingestEvent
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestEventRequest"
+      responses:
+        "204":
+          description: Event accepted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /internal/stats/dashboard:
+    get:
+      tags: [Internal]
+      summary: Aggregate stats dashboard for admin consumers
+      operationId: getStatsDashboard
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Aggregated platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /internal/stats/items/{itemId}:
+    get:
+      tags: [Internal]
+      summary: Full stat record for a single item (internal use)
+      operationId: getItemStatsFull
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Full item stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemStatsFull"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+# ---------------------------------------------------------------------------
+# Components
+# ---------------------------------------------------------------------------
+components:
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: string
+
+  schemas:
+
+    ItemCartStat:
+      type: object
+      properties:
+        item_id:
+          type: string
+        in_cart_count:
+          type: integer
+          description: Number of active carts containing this item
+        label:
+          type: string
+          example: "47 people have this in their cart"
+
+    ItemPurchaseStat:
+      type: object
+      properties:
+        item_id:
+          type: string
+        purchase_count:
+          type: integer
+        period:
+          type: string
+          example: "30d"
+        label:
+          type: string
+          example: "500+ bought in the last month"
+
+    FrequentlyBoughtItem:
+      type: object
+      properties:
+        item_id:
+          type: string
+        name:
+          type: string
+        co_purchase_count:
+          type: integer
+
+    FrequentlyBoughtWithResponse:
+      type: object
+      properties:
+        item_id:
+          type: string
+        related_items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FrequentlyBoughtItem"
+
+    TrendingItem:
+      type: object
+      properties:
+        item_id:
+          type: string
+        name:
+          type: string
+        trend_score:
+          type: number
+          format: float
+
+    TrendingResponse:
+      type: object
+      properties:
+        period:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendingItem"
+
+    IngestEventRequest:
+      type: object
+      required: [event_type, source, payload]
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+          description: Event type from the platform catalogue (e.g. cart.item_added)
+          example: "cart.item_added"
+        source:
+          type: string
+          description: Originating service
+          example: "cart-api"
+        occurred_at:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          additionalProperties: true
+
+    DashboardStats:
+      type: object
+      properties:
+        active_carts:
+          type: integer
+        orders_today:
+          type: integer
+        orders_this_month:
+          type: integer
+        top_items_in_cart:
+          type: array
+          items:
+            $ref: "#/components/schemas/FrequentlyBoughtItem"
+        trending_now:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendingItem"
+
+    ItemStatsFull:
+      type: object
+      properties:
+        item_id:
+          type: string
+        in_cart_count:
+          type: integer
+        purchases_7d:
+          type: integer
+        purchases_30d:
+          type: integer
+        purchases_90d:
+          type: integer
+        view_count:
+          type: integer
+        trend_score:
+          type: number
+          format: float
+        last_updated:
+          type: string
+          format: date-time
+
+    ProblemDetail:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetail"

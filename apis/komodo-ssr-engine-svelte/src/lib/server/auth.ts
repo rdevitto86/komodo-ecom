@@ -1,6 +1,7 @@
 import { logger } from '$lib/logger';
+import { AUTH_API_URL as AUTH_API_URL_KEY } from '$lib/config';
 
-const AUTH_API_URL = process.env.AUTH_API_URL;
+const AUTH_API_URL = process.env[AUTH_API_URL_KEY];
 if (!AUTH_API_URL) throw new Error('AUTH_API_URL is not defined');
 
 export async function validateApiToken(token: string) {

@@ -1,0 +1,99 @@
+#  ____        _        ____             __ _
+# |  _ \ _   _| | ___  / ___|___  _ __  / _(_) __ _
+# | |_) | | | | |/ _ \| |   / _ \| '_ \| |_| |/ _` |
+# |  _ <| |_| | |  __/| |__| (_) | | | |  _| | (_| |
+# |_| \_\\__,_|_|\___| \____\___/|_| |_|_| |_|\__, |
+#                                               |___/
+#
+# Validation Levels:
+#   ignore  — skip all validation (health checks, public probes)
+#   lenient — validate declared constraints; missing API version is allowed
+#   strict  — version header required; all declared constraints enforced
+#
+# Public stat routes are unauthenticated — no Authorization header required.
+# Internal routes require a service-scoped Bearer token.
+#
+
+rules:
+
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  "/health":
+    GET:
+      level: "ignore"
+
+  # ---------------------------------------------------------------------------
+  # Public stat reads — UI banner counters, no auth
+  # ---------------------------------------------------------------------------
+  "/stats/items/{itemId}/in-cart":
+    GET:
+      level: "lenient"
+      params:
+        itemId:
+          type: "string"
+          required: true
+
+  "/stats/items/{itemId}/recently-bought":
+    GET:
+      level: "lenient"
+      params:
+        itemId:
+          type: "string"
+          required: true
+
+  "/stats/items/{itemId}/frequently-bought-with":
+    GET:
+      level: "lenient"
+      params:
+        itemId:
+          type: "string"
+          required: true
+
+  "/stats/trending":
+    GET:
+      level: "lenient"
+
+  # ---------------------------------------------------------------------------
+  # Internal — service-to-service only
+  # ---------------------------------------------------------------------------
+  "/internal/events":
+    POST:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+        Content-Type:
+          required: true
+          value: "application/json"
+      body:
+        event_type:
+          type: "string"
+          required: true
+        source:
+          type: "string"
+          required: true
+        payload:
+          type: "object"
+          required: true
+
+  "/internal/stats/dashboard":
+    GET:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+
+  "/internal/stats/items/{itemId}":
+    GET:
+      level: "lenient"
+      headers:
+        Authorization:
+          required: true
+          value: "Bearer *"
+      params:
+        itemId:
+          type: "string"
+          required: true

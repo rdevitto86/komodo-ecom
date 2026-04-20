@@ -1,6 +1,7 @@
 package main
 
 import (
+	"komodo-user-api/internal/config"
 	"komodo-user-api/internal/handlers"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamodb"
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
 	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
+	"github.com/rdevitto86/komodo-forge-sdk-go/http/handlers/health"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
@@ -18,35 +20,35 @@ import (
 // AWS client bootstrapping lives here so warm Lambda invocations skip it entirely.
 func init() {
 	logger.Init(
-		os.Getenv("APP_NAME"),
-		os.Getenv("LOG_LEVEL"),
-		os.Getenv("ENV"),
+		os.Getenv(config.APP_NAME),
+		os.Getenv(config.LOG_LEVEL),
+		os.Getenv(config.ENV),
 	)
 
 	smCfg := awsSM.Config{
-		Region:   os.Getenv("AWS_REGION"),
-		Endpoint: os.Getenv("AWS_ENDPOINT"),
-		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
-		Batch:    os.Getenv("AWS_SECRET_BATCH"),
+		Region:   os.Getenv(config.AWS_REGION),
+		Endpoint: os.Getenv(config.AWS_ENDPOINT),
+		Prefix:   os.Getenv(config.AWS_SECRET_PREFIX),
+		Batch:    os.Getenv(config.AWS_SECRET_BATCH),
 		Keys: []string{
-			"DYNAMODB_ENDPOINT",
-			"DYNAMODB_ACCESS_KEY",
-			"DYNAMODB_SECRET_KEY",
-			"DYNAMODB_TABLE",
-			"USER_API_CLIENT_ID",
-			"USER_API_CLIENT_SECRET",
-			"JWT_PUBLIC_KEY",
-			"JWT_PRIVATE_KEY",
-			"JWT_AUDIENCE",
-			"JWT_ISSUER",
-			"JWT_KID",
-			"IP_WHITELIST",
-			"IP_BLACKLIST",
-			"MAX_CONTENT_LENGTH",
-			"IDEMPOTENCY_TTL_SEC",
-			"RATE_LIMIT_RPS",
-			"RATE_LIMIT_BURST",
-			"BUCKET_TTL_SECOND",
+			config.DYNAMODB_ENDPOINT,
+			config.DYNAMODB_ACCESS_KEY,
+			config.DYNAMODB_SECRET_KEY,
+			config.DYNAMODB_TABLE,
+			config.USER_API_CLIENT_ID,
+			config.USER_API_CLIENT_SECRET,
+			config.JWT_PUBLIC_KEY,
+			config.JWT_PRIVATE_KEY,
+			config.JWT_AUDIENCE,
+			config.JWT_ISSUER,
+			config.JWT_KID,
+			config.IP_WHITELIST,
+			config.IP_BLACKLIST,
+			config.MAX_CONTENT_LENGTH,
+			config.IDEMPOTENCY_TTL_SEC,
+			config.RATE_LIMIT_RPS,
+			config.RATE_LIMIT_BURST,
+			config.BUCKET_TTL_SECOND,
 		},
 	}
 	if err := awsSM.Bootstrap(smCfg); err != nil {
@@ -55,10 +57,10 @@ func init() {
 	}
 
 	ddbCfg := dynamodb.Config{
-		Region:    os.Getenv("AWS_REGION"),
-		Endpoint:  os.Getenv("DYNAMODB_ENDPOINT"),
-		AccessKey: os.Getenv("DYNAMODB_ACCESS_KEY"),
-		SecretKey: os.Getenv("DYNAMODB_SECRET_KEY"),
+		Region:    os.Getenv(config.AWS_REGION),
+		Endpoint:  os.Getenv(config.DYNAMODB_ENDPOINT),
+		AccessKey: os.Getenv(config.DYNAMODB_ACCESS_KEY),
+		SecretKey: os.Getenv(config.DYNAMODB_SECRET_KEY),
 	}
 	if err := dynamodb.Init(ddbCfg); err != nil {
 		logger.Fatal("failed to initialize dynamodb", err)
@@ -105,7 +107,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handlers.HealthHandler)
+	mux.HandleFunc("GET /health", health.HealthHandler)
 
 	mux.Handle("GET /me/profile", mw.Chain(handlers.GetProfile, publicReadMW...))
 	mux.Handle("POST /me/profile", mw.Chain(handlers.CreateUser, publicWriteMW...))
@@ -125,6 +127,12 @@ func main() {
 	mux.Handle("PUT /me/preferences", mw.Chain(handlers.UpdatePreferences, publicWriteMW...))
 	mux.Handle("DELETE /me/preferences", mw.Chain(handlers.DeletePreferences, publicWriteMW...))
 
+	mux.Handle("GET /me/wishlist", mw.Chain(handlers.GetWishlist, publicReadMW...))
+	mux.Handle("POST /me/wishlist/items", mw.Chain(handlers.AddWishlistItem, publicWriteMW...))
+	mux.Handle("DELETE /me/wishlist/items/{itemId}", mw.Chain(handlers.RemoveWishlistItem, publicWriteMW...))
+	mux.Handle("GET /me/wishlist/availability", mw.Chain(handlers.GetWishlistAvailability, publicReadMW...))
+	mux.Handle("POST /me/wishlist/move-to-cart", mw.Chain(handlers.MoveWishlistToCart, publicWriteMW...))
+
 	server := &http.Server{
 		Handler:           mux,
 		ReadTimeout:       5 * time.Second,
@@ -134,5 +142,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	srv.Run(server, os.Getenv("PORT"), 30*time.Second)
+	srv.Run(server, os.Getenv(config.PORT), 30*time.Second)
 }

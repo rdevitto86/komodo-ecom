@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"komodo-auth-api/internal/oauth/tokens"
 	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
@@ -74,25 +75,17 @@ func OAuthRevokeHandler(wtr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// TODO: Store revoked token in Elasticache with TTL
-	// revokeKey := "revoked:token:" + jti
-	// if err := elasticache.SetCacheItem(revokeKey, clientID, ttl); err != nil {
-	// 	logger.Error("failed to revoke token in cache", err)
-	// 	errors.WriteErrorResponse(
-	// 		wtr,
-	// 		req,
-	// 		http.StatusInternalServerError,
-	// 		"server_error",
-	// 		errCodes.ERR_INTERNAL_SERVER,
-	// 	)
-	// 	return
-	// }
+	if err := tokens.StoreRevoked(jti, ttl); err != nil {
+		logger.Error("failed to store revoked JTI in cache", err)
+		httpErr.SendError(wtr, req, httpErr.Global.Internal, httpErr.WithDetail("failed to revoke token"))
+		return
+	}
 
 	logger.Info("token revoked successfully for subject: " + claims.Subject + ", JTI: " + jti)
 
 	// Per RFC 7009, return 200 OK with empty response (or small JSON)
 	wtr.WriteHeader(http.StatusOK)
-	json.NewEncoder(wtr).Encode(map[string]interface{}{
+	json.NewEncoder(wtr).Encode(map[string]any{
 		"revoked":    true,
 		"revoked_at": time.Now().Unix(),
 	})

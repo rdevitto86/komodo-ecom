@@ -1,10 +1,15 @@
 package models
 
 import (
+	"errors"
 	"net/http"
 
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 )
+
+// ErrForbidden is a sentinel error for user-ownership violations.
+// Handlers map this to a 403 response via sendOrderError.
+var ErrForbidden = errors.New("forbidden")
 
 // 40xxx — komodo-order-api orders (see forge-sdk ranges.go)
 // 41xxx — komodo-order-api line items

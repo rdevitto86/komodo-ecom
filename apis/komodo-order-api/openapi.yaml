@@ -3,13 +3,19 @@ info:
   title: komodo-order-api
   version: "0.1.0"
   description: |
-    Order management service.
+    Order management service. Consumes cart checkout tokens to create and manage
+    customer orders. Writes to DynamoDB with a GSI for user-scoped listing.
 servers:
-  - url: http://localhost:7034
+  - url: http://localhost:7061
     description: Local dev
 
 tags:
   - name: Health
+  - name: Orders
+  - name: Returns
+
+security:
+  - bearerAuth: []
 
 paths:
   /health:
@@ -22,9 +28,583 @@ paths:
         "200":
           description: Service is healthy
 
+  /me/orders:
+    post:
+      tags: [Orders]
+      summary: Place order
+      operationId: placeOrder
+      description: |
+        Consumes a checkout token issued by cart-api to create a new order.
+        Idempotent — duplicate requests with the same checkoutToken return the
+        original order (Redis-backed, 24h TTL).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaceOrderRequest"
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [Orders]
+      summary: List orders
+      operationId: listOrders
+      description: Returns all orders for the authenticated user, sorted by creation time.
+      responses:
+        "200":
+          description: Order list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /me/orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: Get order
+      operationId: getOrder
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /me/orders/{orderId}/cancel:
+    post:
+      tags: [Orders]
+      summary: Cancel order
+      operationId: cancelOrder
+      description: Cancels an order if it has not yet been shipped. Not yet implemented.
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Order cannot be cancelled (already shipped or cancelled)
+        "501":
+          description: Not implemented
+
+  # ── Returns (RMA) ──────────────────────────────────────────────────────────
+
+  /me/orders/returns:
+    get:
+      tags: [Returns]
+      summary: List user's return requests
+      operationId: listMyReturns
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ReturnStatus"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Return requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [Returns]
+      summary: Initiate a return request
+      operationId: createReturn
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReturnRequest"
+      responses:
+        "201":
+          description: Return request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Return"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Order not eligible for return (outside window, already returned, or not fulfilled)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /me/orders/returns/{returnId}:
+    get:
+      tags: [Returns]
+      summary: Get return status
+      operationId: getMyReturn
+      parameters:
+        - $ref: "#/components/parameters/ReturnId"
+      responses:
+        "200":
+          description: Return details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Return"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [Returns]
+      summary: Cancel a pending return request
+      operationId: cancelMyReturn
+      parameters:
+        - $ref: "#/components/parameters/ReturnId"
+      responses:
+        "204":
+          description: Return cancelled
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Return cannot be cancelled (already approved or processed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ── Internal returns routes (service-to-service, scope-checked JWT) ────────
+
+  /internal/returns/{returnId}:
+    get:
+      tags: [Returns]
+      summary: Get return (internal service lookup)
+      operationId: getReturnInternal
+      parameters:
+        - $ref: "#/components/parameters/ReturnId"
+      responses:
+        "200":
+          description: Return details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Return"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /internal/returns/{returnId}/approve:
+    put:
+      tags: [Returns]
+      summary: Approve return and trigger refund
+      operationId: approveReturn
+      parameters:
+        - $ref: "#/components/parameters/ReturnId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveReturnRequest"
+      responses:
+        "200":
+          description: Return approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Return"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Return not in approvable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /internal/returns/{returnId}/receive:
+    put:
+      tags: [Returns]
+      summary: Mark items received, trigger restock and loyalty reversal
+      operationId: receiveReturn
+      parameters:
+        - $ref: "#/components/parameters/ReturnId"
+      responses:
+        "200":
+          description: Return processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Return"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Return not in receivable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /internal/returns/{returnId}/reject:
+    put:
+      tags: [Returns]
+      summary: Reject return request
+      operationId: rejectReturn
+      parameters:
+        - $ref: "#/components/parameters/ReturnId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectReturnRequest"
+      responses:
+        "200":
+          description: Return rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Return"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
+  parameters:
+    ReturnId:
+      name: returnId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    PlaceOrderRequest:
+      type: object
+      required: [checkoutToken]
+      properties:
+        checkoutToken:
+          type: string
+          description: Checkout token issued by cart-api after /me/cart/checkout
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Internal order ID (UUID)
+        displayId:
+          type: string
+          description: Customer-facing order label
+        userId:
+          type: string
+        status:
+          type: string
+          enum: [pending, confirmed, processing, shipped, delivered, cancelled, refunded]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItem"
+        address:
+          $ref: "#/components/schemas/OrderAddress"
+        payment:
+          $ref: "#/components/schemas/OrderPayment"
+        totals:
+          $ref: "#/components/schemas/OrderTotals"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+        productId:
+          type: string
+        variantId:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        quantity:
+          type: integer
+        unitPrice:
+          type: number
+          format: float
+        total:
+          type: number
+          format: float
+
+    OrderAddress:
+      type: object
+      properties:
+        line1:
+          type: string
+        line2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+
+    OrderPayment:
+      type: object
+      properties:
+        method:
+          type: string
+        transactionId:
+          type: string
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+
+    OrderTotals:
+      type: object
+      properties:
+        subtotal:
+          type: number
+          format: float
+        tax:
+          type: number
+          format: float
+        shipping:
+          type: number
+          format: float
+        discount:
+          type: number
+          format: float
+        total:
+          type: number
+          format: float
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+        message:
+          type: string
+        code:
+          type: string
+        detail:
+          type: string
+        request_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    # ── Returns schemas ────────────────────────────────────────────────────────
+
+    ReturnStatus:
+      type: string
+      enum: [requested, approved, received, processed, rejected, cancelled]
+
+    ReturnItem:
+      type: object
+      required: [item_id, sku, quantity, reason]
+      properties:
+        item_id:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          enum: [defective, wrong_item, not_as_described, changed_mind, other]
+        notes:
+          type: string
+
+    Return:
+      type: object
+      required: [return_id, order_id, status, items, created_at, updated_at]
+      properties:
+        return_id:
+          type: string
+          format: uuid
+        order_id:
+          type: string
+        status:
+          $ref: "#/components/schemas/ReturnStatus"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReturnItem"
+        refund_amount_cents:
+          type: integer
+        refund_id:
+          type: string
+          description: Set when refund is initiated
+        return_window_expires:
+          type: string
+          format: date-time
+        rejection_reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ReturnList:
+      type: object
+      required: [returns]
+      properties:
+        returns:
+          type: array
+          items:
+            $ref: "#/components/schemas/Return"
+        next_cursor:
+          type: string
+
+    CreateReturnRequest:
+      type: object
+      required: [order_id, items]
+      properties:
+        order_id:
+          type: string
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReturnItem"
+
+    ApproveReturnRequest:
+      type: object
+      properties:
+        refund_amount_cents:
+          type: integer
+          description: Override refund amount. Defaults to full item value if omitted.
+
+    RejectReturnRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

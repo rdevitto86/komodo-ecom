@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"komodo-auth-api/internal/registry"
+	"komodo-auth-api/internal/oauth/clients"
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
@@ -15,7 +15,7 @@ func GetClientHandler(wtr http.ResponseWriter, req *http.Request) {
 	wtr.Header().Set("Content-Type", "application/json")
 
 	id := req.PathValue("id")
-	rec, ok := registry.Get(id)
+	rec, ok := clients.Get(id)
 	if !ok {
 		httpErr.SendError(wtr, req, httpErr.Auth.InvalidClientCredentials, httpErr.WithDetail("client not found: "+id))
 		return
@@ -34,7 +34,7 @@ func GetClientHandler(wtr http.ResponseWriter, req *http.Request) {
 func ListClientsHandler(wtr http.ResponseWriter, req *http.Request) {
 	wtr.Header().Set("Content-Type", "application/json")
 
-	clients := registry.List()
+	clients := clients.List()
 	result := make([]map[string]any, 0, len(clients))
 	for id, rec := range clients {
 		result = append(result, map[string]any{

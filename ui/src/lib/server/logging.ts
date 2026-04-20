@@ -1,15 +1,16 @@
 import type { BaseLogEvent, LogLevel } from '$lib/logger/common/schema';
+import { APP_NAME, NODE_ENV, APP_VERSION, LOG_LEVEL as LOG_LEVEL_KEY } from '$lib/config';
 
-const SERVICE = process.env.APP_NAME    || 'komodo-ui';
-const ENV     = process.env.NODE_ENV    || 'development';
-const VERSION = process.env.APP_VERSION || 'unknown';
+const SERVICE = process.env[APP_NAME]    || 'komodo-ui';
+const ENV     = process.env[NODE_ENV]    || 'development';
+const VERSION = process.env[APP_VERSION] || 'unknown';
 
 const LEVEL_WEIGHT: Record<LogLevel, number> = {
   debug: 1, info: 2, warn: 3, error: 4
 };
 
 const minLevel: number = LEVEL_WEIGHT[
-  ((process.env.LOG_LEVEL || (ENV === 'production' ? 'warn' : 'info')) as LogLevel)
+  ((process.env[LOG_LEVEL_KEY] || (ENV === 'production' ? 'warn' : 'info')) as LogLevel)
 ] ?? LEVEL_WEIGHT.info;
 
 const isLocal = ENV === 'development' || ENV === 'local';

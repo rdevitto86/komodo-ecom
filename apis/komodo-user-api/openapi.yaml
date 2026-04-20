@@ -21,6 +21,7 @@ tags:
   - name: Addresses
   - name: Payments
   - name: Preferences
+  - name: Wishlist
   - name: Internal
 
 # ---------------------------------------------------------------------------
@@ -306,6 +307,101 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  # ── Wishlist ─────────────────────────────────────────────────────────────
+
+  /me/wishlist:
+    get:
+      tags: [Wishlist]
+      summary: Get the authenticated user's wishlist
+      operationId: getWishlist
+      responses:
+        "200":
+          description: Wishlist contents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wishlist"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/wishlist/items:
+    post:
+      tags: [Wishlist]
+      summary: Add an item to the wishlist
+      operationId: addWishlistItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddWishlistItemRequest"
+      responses:
+        "201":
+          description: Item added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WishlistItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /me/wishlist/items/{itemId}:
+    parameters:
+      - $ref: "#/components/parameters/WishlistItemID"
+    delete:
+      tags: [Wishlist]
+      summary: Remove an item from the wishlist
+      operationId: removeWishlistItem
+      responses:
+        "204":
+          description: Item removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /me/wishlist/availability:
+    get:
+      tags: [Wishlist]
+      summary: Check stock availability for all items in the wishlist
+      operationId: getWishlistAvailability
+      responses:
+        "200":
+          description: Per-item availability status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WishlistAvailability"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/wishlist/move-to-cart:
+    post:
+      tags: [Wishlist]
+      summary: Move one or more wishlist items to cart
+      operationId: moveWishlistToCart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoveToCartRequest"
+      responses:
+        "200":
+          description: Per-item move result (some may fail if out of stock)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoveToCartResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   # ── Internal ─────────────────────────────────────────────────────────────
 
   /users/{id}:
@@ -437,6 +533,13 @@ components:
       schema:
         type: string
       description: Payment method ID
+    WishlistItemID:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Wishlist item ID
 
   schemas:
     User:
@@ -610,6 +713,104 @@ components:
           description: Payment processor token (e.g. Stripe payment method ID "pm_xxx")
         is_default:
           type: boolean
+
+    WishlistItem:
+      type: object
+      required: [item_id, sku, name, added_at]
+      properties:
+        item_id:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+          description: Denormalized item name snapshotted at add time
+        image_url:
+          type: string
+        price_cents:
+          type: integer
+          description: Denormalized price in cents snapshotted at add time
+        added_at:
+          type: string
+          format: date-time
+
+    Wishlist:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WishlistItem"
+
+    AddWishlistItemRequest:
+      type: object
+      required: [item_id, sku]
+      properties:
+        item_id:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        image_url:
+          type: string
+        price_cents:
+          type: integer
+
+    ItemAvailability:
+      type: object
+      required: [item_id, sku, in_stock]
+      properties:
+        item_id:
+          type: string
+        sku:
+          type: string
+        in_stock:
+          type: boolean
+        available_qty:
+          type: integer
+
+    WishlistAvailability:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemAvailability"
+
+    MoveToCartRequest:
+      type: object
+      required: [item_ids]
+      properties:
+        item_ids:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: item_id values to move to cart
+
+    MoveToCartResultItem:
+      type: object
+      required: [item_id, moved]
+      properties:
+        item_id:
+          type: string
+        moved:
+          type: boolean
+        reason:
+          type: string
+          description: Present when moved=false (e.g. "out_of_stock")
+
+    MoveToCartResult:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoveToCartResultItem"
 
     ProblemDetail:
       type: object

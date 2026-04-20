@@ -1,6 +1,7 @@
 import { parentPort } from 'node:worker_threads';
 import Database from 'better-sqlite3';
 import path from 'path';
+import { SQLITE_DB_PATH as SQLITE_DB_PATH_KEY } from '$lib/config';
 
 /**
  * Cache writer worker thread
@@ -11,7 +12,7 @@ import path from 'path';
 
 if (!parentPort) throw new Error('cache-writer must run as a worker thread');
 
-const DB_PATH = process.env.SQLITE_DB_PATH || path.join(process.cwd(), 'data', 'template-cache.db');
+const DB_PATH = process.env[SQLITE_DB_PATH_KEY] || path.join(process.cwd(), 'data', 'template-cache.db');
 const HIT_FLUSH_INTERVAL_MS = 5_000;
 const MAINTENANCE_INTERVAL_MS = 10 * 60 * 1000;
 const PROMOTION_THRESHOLD = 5;

@@ -7,10 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
-	"komodo-user-api/internal/repo"
 	"komodo-user-api/internal/models"
+	"komodo-user-api/internal/repo"
 )
 
 // ErrNotFound is the sentinel returned when a requested resource does not exist.
@@ -71,66 +69,62 @@ func GetAddresses(ctx context.Context, userID string) ([]models.Address, error) 
 }
 
 func AddAddress(ctx context.Context, userID string, addr *models.Address) error {
-	if addr.AddressID == "" {
-		raw := strings.ReplaceAll(uuid.NewString(), "-", "")
-		addr.AddressID = "addr_" + raw[:12]
-	}
-	// TODO: replace with a dedicated repo.CreateAddress once the address sub-item write
-	// pattern is defined in data-model.md. CreateUser is the only available write today
-	// and does not support address items; this call will return an error until the repo
-	// is extended.
-	user := &models.User{UserID: userID}
-	_ = addr // addr will be wired into the dedicated repo call
-	if err := repo.CreateUser(ctx, user); err != nil {
+	// Pass addr by pointer so the repo can write back the generated AddressID.
+	if err := repo.CreateAddress(ctx, userID, addr); err != nil {
 		return fmt.Errorf("service.AddAddress: %w", err)
 	}
 	return nil
 }
 
 func UpdateAddress(ctx context.Context, userID, addressID string, update *models.Address) error {
-	// TODO: wire to repo.UpdateAddress once that function exists (data-model.md pending).
-	_, err := repo.UpdateUser(ctx, userID, &models.User{UserID: userID})
-	if err != nil {
+	update.AddressID = addressID
+	if err := repo.UpdateAddress(ctx, userID, *update); err != nil {
 		if isNotFound(err) {
 			return fmt.Errorf("service.UpdateAddress: %w", ErrNotFound)
 		}
 		return fmt.Errorf("service.UpdateAddress: %w", err)
 	}
-	_ = addressID
-	_ = update
 	return nil
 }
 
 func DeleteAddress(ctx context.Context, userID, addressID string) error {
-	// TODO: wire to repo.DeleteAddress once that function exists (data-model.md pending).
-	if err := repo.DeleteUser(ctx, userID); err != nil {
+	if err := repo.DeleteAddress(ctx, userID, addressID); err != nil {
+		if isNotFound(err) {
+			return fmt.Errorf("service.DeleteAddress: %w", ErrNotFound)
+		}
 		return fmt.Errorf("service.DeleteAddress: %w", err)
 	}
-	_ = addressID
 	return nil
 }
 
 func GetPayments(ctx context.Context, userID string) ([]models.PaymentMethod, error) {
-	// TODO: wire to repo.GetUserPayments once that function exists (data-model.md pending).
-	_ = userID
-	return nil, fmt.Errorf("service.GetPayments: not implemented")
+	methods, err := repo.ListPayments(ctx, userID)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, fmt.Errorf("service.GetPayments: %w", ErrNotFound)
+		}
+		return nil, fmt.Errorf("service.GetPayments: %w", err)
+	}
+	return methods, nil
 }
 
 func UpsertPayment(ctx context.Context, userID string, pm *models.PaymentMethod) error {
-	if pm.PaymentID == "" {
-		raw := strings.ReplaceAll(uuid.NewString(), "-", "")
-		pm.PaymentID = "pay_" + raw[:12]
+	// ID generation is delegated to the repo so the assigned PaymentID is
+	// reflected back on the caller's pointer after the write succeeds.
+	if err := repo.UpsertPayment(ctx, userID, pm); err != nil {
+		return fmt.Errorf("service.UpsertPayment: %w", err)
 	}
-	// TODO: wire to repo.UpsertPayment once that function exists (data-model.md pending).
-	_ = userID
-	return fmt.Errorf("service.UpsertPayment: not implemented")
+	return nil
 }
 
 func DeletePayment(ctx context.Context, userID, paymentID string) error {
-	// TODO: wire to repo.DeletePayment once that function exists (data-model.md pending).
-	_ = userID
-	_ = paymentID
-	return fmt.Errorf("service.DeletePayment: not implemented")
+	if err := repo.DeletePayment(ctx, userID, paymentID); err != nil {
+		if isNotFound(err) {
+			return fmt.Errorf("service.DeletePayment: %w", ErrNotFound)
+		}
+		return fmt.Errorf("service.DeletePayment: %w", err)
+	}
+	return nil
 }
 
 func GetPreferences(ctx context.Context, userID string) (*models.Preferences, error) {

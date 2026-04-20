@@ -1,5 +1,19 @@
 package models
 
+import "encoding/json"
+
+// ServiceType classifies a catalog item.
+// Existing S3 data that lacks this field defaults to the type implied by its
+// storage prefix: objects under products/ default to "product", objects under
+// services/ default to "service".
+type ServiceType string
+
+const (
+	ServiceTypeProduct ServiceType = "product"
+	ServiceTypeService ServiceType = "service"
+	ServiceTypeRepair  ServiceType = "repair"
+)
+
 // StockCode represents inventory availability status
 type StockCode string
 
@@ -183,6 +197,31 @@ type Service struct {
 	SEO                *SEO                `json:"seo,omitempty"`
 	CreatedAt          string              `json:"createdAt,omitempty"`
 	UpdatedAt          string              `json:"updatedAt,omitempty"`
+
+	// ServiceType classifies whether this is a generic service or a repair.
+	// Defaults to "service" when absent in persisted data (backward-compatible).
+	ServiceType ServiceType `json:"service_type,omitempty"`
+
+	// Repair-specific fields — only populated when ServiceType == "repair".
+	AcceptedDeviceTypes     []string `json:"accepted_device_types,omitempty"`
+	EstimatedTurnaroundDays int      `json:"estimated_turnaround_days,omitempty"`
+	WarrantyOnRepair        string   `json:"warranty_on_repair,omitempty"`
+}
+
+// UnmarshalJSON implements custom unmarshalling to default ServiceType to
+// "service" when the field is absent in persisted S3 data.
+func (s *Service) UnmarshalJSON(data []byte) error {
+	// Use a local alias to avoid infinite recursion.
+	type serviceAlias Service
+	var alias serviceAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	*s = Service(alias)
+	if s.ServiceType == "" {
+		s.ServiceType = ServiceTypeService
+	}
+	return nil
 }
 
 type ServiceImage struct {
@@ -232,6 +271,14 @@ type ServiceAreaRadius struct {
 	CenterZip string  `json:"centerZip"`
 }
 
+// RepairServicesResponse is the paginated response for GET /services/repair.
+type RepairServicesResponse struct {
+	Items  []Service `json:"items"`
+	Total  int       `json:"total"`
+	Page   int       `json:"page"`
+	Limit  int       `json:"limit"`
+}
+
 // API request/response models
 
 type InventoryItem struct {
@@ -253,6 +300,8 @@ type SuggestionRequest struct {
 	SKUs       []string `json:"skus,omitempty"`
 	Categories []string `json:"categories,omitempty"`
 	Limit      int      `json:"limit,omitempty"`
+	// Exclude lists SKUs to omit from suggestions (e.g. items already in cart).
+	Exclude []string `json:"exclude,omitempty"`
 }
 
 type SuggestionResponse struct {

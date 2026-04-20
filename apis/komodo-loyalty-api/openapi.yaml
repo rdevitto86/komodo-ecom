@@ -3,13 +3,15 @@ info:
   title: komodo-loyalty-api
   version: "0.1.0"
   description: |
-    Loyalty program management service.
+    Loyalty program management and product reviews service.
+    Absorbed komodo-reviews-api (both services share the Loyalty & Social domain).
 servers:
-  - url: http://localhost:7033
+  - url: http://localhost:7091
     description: Local dev
 
 tags:
   - name: Health
+  - name: Reviews
 
 paths:
   /health:
@@ -22,9 +24,192 @@ paths:
         "200":
           description: Service is healthy
 
+  /me/reviews:
+    post:
+      tags: [Reviews]
+      summary: Submit a review
+      description: Submit a product review. Requires a verified purchase for the item.
+      operationId: submitReview
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitReviewRequest"
+      responses:
+        "201":
+          description: Review created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "400":
+          description: Invalid request body
+        "403":
+          description: Not eligible — purchase required
+        "409":
+          description: Already reviewed this item
+
+  /me/reviews/{reviewId}:
+    put:
+      tags: [Reviews]
+      summary: Update own review
+      operationId: updateReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReviewRequest"
+      responses:
+        "200":
+          description: Review updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "403":
+          description: Not your review
+        "404":
+          description: Review not found
+    delete:
+      tags: [Reviews]
+      summary: Delete own review
+      operationId: deleteReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Review deleted
+        "403":
+          description: Not your review
+        "404":
+          description: Review not found
+
+  /items/{itemId}/reviews:
+    get:
+      tags: [Reviews]
+      summary: List reviews for an item
+      description: Returns paginated reviews for a product. No authentication required.
+      operationId: listItemReviews
+      security: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        "200":
+          description: Paginated review listing with aggregate rating
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewListResponse"
+        "404":
+          description: Item not found
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
+  schemas:
+    Review:
+      type: object
+      properties:
+        reviewId:
+          type: string
+        userId:
+          type: string
+        itemId:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        title:
+          type: string
+        body:
+          type: string
+        verifiedPurchase:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SubmitReviewRequest:
+      type: object
+      required: [itemId, rating]
+      properties:
+        itemId:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        title:
+          type: string
+        body:
+          type: string
+
+    UpdateReviewRequest:
+      type: object
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        title:
+          type: string
+        body:
+          type: string
+
+    ReviewListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Review"
+        totalCount:
+          type: integer
+        avgRating:
+          type: number
+          format: float
+        page:
+          type: integer
+        limit:
+          type: integer

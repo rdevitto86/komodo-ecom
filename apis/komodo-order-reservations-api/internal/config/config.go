@@ -1,0 +1,20 @@
+package config
+
+const (
+	APP_NAME                     = "APP_NAME"
+	LOG_LEVEL                    = "LOG_LEVEL"
+	ENV                          = "ENV"
+	PORT                         = "PORT"
+	AWS_REGION                   = "AWS_REGION"
+	AWS_ENDPOINT                 = "AWS_ENDPOINT"
+	AWS_SECRET_PREFIX            = "AWS_SECRET_PREFIX"
+	AWS_SECRET_BATCH             = "AWS_SECRET_BATCH"
+	RESERVATIONS_API_CLIENT_ID   = "RESERVATIONS_API_CLIENT_ID"
+	RESERVATIONS_API_CLIENT_SECRET = "RESERVATIONS_API_CLIENT_SECRET"
+	DYNAMODB_SLOTS_TABLE         = "DYNAMODB_SLOTS_TABLE"
+	DYNAMODB_BOOKINGS_TABLE      = "DYNAMODB_BOOKINGS_TABLE"
+	IP_WHITELIST                 = "IP_WHITELIST"
+	IP_BLACKLIST                 = "IP_BLACKLIST"
+	RATE_LIMIT_RPS               = "RATE_LIMIT_RPS"
+	RATE_LIMIT_BURST             = "RATE_LIMIT_BURST"
+)

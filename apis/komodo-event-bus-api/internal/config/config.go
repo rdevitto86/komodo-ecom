@@ -1,0 +1,22 @@
+package config
+
+const (
+	APP_NAME                 = "APP_NAME"
+	LOG_LEVEL                = "LOG_LEVEL"
+	ENV                      = "ENV"
+	PORT                     = "PORT"
+	PORT_PRIVATE            = "PORT_PRIVATE"
+	AWS_REGION               = "AWS_REGION"
+	AWS_ENDPOINT             = "AWS_ENDPOINT"
+	AWS_SECRET_PREFIX        = "AWS_SECRET_PREFIX"
+	AWS_SECRET_BATCH         = "AWS_SECRET_BATCH"
+	SNS_TOPIC_ARN_PREFIX     = "SNS_TOPIC_ARN_PREFIX"
+	JWT_PUBLIC_KEY           = "JWT_PUBLIC_KEY"
+	JWT_PRIVATE_KEY          = "JWT_PRIVATE_KEY"
+	JWT_AUDIENCE             = "JWT_AUDIENCE"
+	JWT_ISSUER               = "JWT_ISSUER"
+	JWT_KID                  = "JWT_KID"
+	MAX_CONTENT_LENGTH       = "MAX_CONTENT_LENGTH"
+	RATE_LIMIT_RPS           = "RATE_LIMIT_RPS"
+	RATE_LIMIT_BURST         = "RATE_LIMIT_BURST"
+)

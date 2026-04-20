@@ -5,8 +5,10 @@ export interface PageSnapshot {
   rehydrate: boolean;
 }
 
+import { APP_VERSION } from '$lib/config';
+
 class AppState {
-  #version = import.meta.env.VERSION;
+  #version = import.meta.env[APP_VERSION] || 'unknown';
   #sidebarMin = $state(false);
   #isLoading = $state(false);
   #showAnimations = $state(true);

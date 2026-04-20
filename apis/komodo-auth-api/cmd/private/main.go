@@ -1,41 +1,43 @@
 package main
 
 import (
+	"komodo-auth-api/internal/config"
 	"komodo-auth-api/internal/handlers"
-	"komodo-auth-api/internal/registry"
+	"komodo-auth-api/internal/oauth/clients"
 	"net/http"
 	"os"
 	"time"
 
 	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secrets-manager"
 	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
+	"github.com/rdevitto86/komodo-forge-sdk-go/http/handlers/health"
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
 
 // init runs once per execution environment.
-// Internal needs JWT keys (for ValidateTokenHandler) and the client registry.
+// Internal needs JWT keys (for ValidateTokenHandler) and the client clients.
 // ElastiCache is not needed — revocation checks are public-port concerns.
 func init() {
 	logger.Init(
-		os.Getenv("APP_NAME"),
-		os.Getenv("LOG_LEVEL"),
-		os.Getenv("ENV"),
+		os.Getenv(config.APP_NAME),
+		os.Getenv(config.LOG_LEVEL),
+		os.Getenv(config.ENV),
 	)
 
 	smCfg := awsSM.Config{
-		Region:   os.Getenv("AWS_REGION"),
-		Endpoint: os.Getenv("AWS_ENDPOINT"),
-		Prefix:   os.Getenv("AWS_SECRET_PREFIX"),
-		Batch:    os.Getenv("AWS_SECRET_BATCH"),
+		Region:   os.Getenv(config.AWS_REGION),
+		Endpoint: os.Getenv(config.AWS_ENDPOINT),
+		Prefix:   os.Getenv(config.AWS_SECRET_PREFIX),
+		Batch:    os.Getenv(config.AWS_SECRET_BATCH),
 		Keys: []string{
-			"JWT_PUBLIC_KEY",
-			"JWT_PRIVATE_KEY",
-			"JWT_AUDIENCE",
-			"JWT_ISSUER",
-			"JWT_KID",
-			"REGISTERED_CLIENTS",
+			config.JWT_PUBLIC_KEY,
+			config.JWT_PRIVATE_KEY,
+			config.JWT_AUDIENCE,
+			config.JWT_ISSUER,
+			config.JWT_KID,
+			config.REGISTERED_CLIENTS,
 		},
 	}
 	if err := awsSM.Bootstrap(smCfg); err != nil {
@@ -48,7 +50,7 @@ func init() {
 		os.Exit(1)
 	}
 
-	if err := registry.Load(); err != nil {
+	if err := clients.Load(); err != nil {
 		logger.Fatal("failed to load client registry", err)
 		os.Exit(1)
 	}
@@ -66,7 +68,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handlers.HealthHandler)
+	mux.HandleFunc("GET /health", health.HealthHandler)
 
 	mux.Handle("POST /internal/token/validate", mw.Chain(http.HandlerFunc(handlers.ValidateTokenHandler), internalMW...))
 	mux.Handle("GET /internal/clients", mw.Chain(http.HandlerFunc(handlers.ListClientsHandler), internalMW...))
@@ -81,5 +83,5 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	srv.Run(server, os.Getenv("INTERNAL_PORT"), 30*time.Second)
+	srv.Run(server, os.Getenv(config.PORT_PRIVATE), 30*time.Second)
 }

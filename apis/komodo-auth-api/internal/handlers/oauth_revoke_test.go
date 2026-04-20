@@ -1,3 +1,3 @@
 package handlers
 
-// TODO: Add tests for oauth_revoke_handler.go
+// TODO: Add tests for oauth_revoke.go

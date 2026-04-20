@@ -1,6 +1,8 @@
 // TODO pino logger?
 
-const LOG_LEVEL = process.env.LOG_LEVEL as keyof typeof LogLevel || 'error';
+import { LOG_LEVEL as LOG_LEVEL_KEY } from '$lib/config';
+
+const LOG_LEVEL = process.env[LOG_LEVEL_KEY] as keyof typeof LogLevel || 'error';
 enum LogLevel { off = 0, info = 1, warn = 2, error = 3 }
 
 export const logger = {

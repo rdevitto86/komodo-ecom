@@ -1,11 +1,12 @@
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { logger } from '../logger';
 import { getCachedTemplate, setCachedTemplate } from './cache';
+import { AWS_REGION, S3_CONTENT_BUCKET } from '$lib/config';
 
-const BUCKET = process.env.S3_CONTENT_BUCKET!;
+const BUCKET = process.env[S3_CONTENT_BUCKET]!;
 
 const s3 = new S3Client({
-  region: process.env.AWS_REGION || "us-east-1"
+  region: process.env[AWS_REGION] || "us-east-1"
 });
 
 export async function getPageContentFromS3(pageKey: string) {

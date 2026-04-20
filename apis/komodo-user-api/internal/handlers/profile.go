@@ -7,8 +7,8 @@ import (
 	ctxKeys "github.com/rdevitto86/komodo-forge-sdk-go/http/context"
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 
-	"komodo-user-api/internal/service"
 	"komodo-user-api/internal/models"
+	"komodo-user-api/internal/service"
 )
 
 // resolveUserID returns the user ID from the request, preferring the {id} path

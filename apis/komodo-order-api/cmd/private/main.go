@@ -7,26 +7,72 @@ import (
 
 	"komodo-order-api/internal/config"
 	"komodo-order-api/internal/handlers"
+	"komodo-order-api/internal/service"
 
+	"github.com/rdevitto86/komodo-forge-sdk-go/aws/dynamo"
+	awsSM "github.com/rdevitto86/komodo-forge-sdk-go/aws/secretsmanager"
+	"github.com/rdevitto86/komodo-forge-sdk-go/crypto/jwt"
 	"github.com/rdevitto86/komodo-forge-sdk-go/http/handlers/health"
-
 	mw "github.com/rdevitto86/komodo-forge-sdk-go/http/middleware"
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 )
 
-// init mirrors the public server bootstrap so this binary can run independently.
-// Secrets, DynamoDB, and JWT keys are shared resources — both binaries need them.
+// init bootstraps secrets, DynamoDB, and JWT keys for the private server.
+// Mirrors public/main.go bootstrap so this binary can run independently.
 func init() {
 	logger.Init(
 		os.Getenv(config.APP_NAME),
 		os.Getenv(config.LOG_LEVEL),
 		os.Getenv(config.ENV),
 	)
+
+	smCfg := awsSM.Config{
+		Region:   os.Getenv(config.AWS_REGION),
+		Endpoint: os.Getenv(config.AWS_ENDPOINT),
+		Prefix:   os.Getenv(config.AWS_SECRET_PREFIX),
+		Batch:    os.Getenv(config.AWS_SECRET_BATCH),
+		Keys: []string{
+			config.DYNAMODB_ORDERS_TABLE,
+			config.DYNAMODB_ACCESS_KEY,
+			config.DYNAMODB_SECRET_KEY,
+			config.DYNAMODB_ENDPOINT,
+			config.JWT_PUBLIC_KEY,
+			config.JWT_PRIVATE_KEY,
+			config.JWT_ISSUER,
+			config.JWT_AUDIENCE,
+			config.JWT_KID,
+		},
+	}
+	if err := awsSM.Bootstrap(smCfg); err != nil {
+		logger.Fatal("failed to initialize secrets manager", err)
+		os.Exit(1)
+	}
+
+	ddbCfg := dynamo.Config{
+		Region:    os.Getenv(config.AWS_REGION),
+		Endpoint:  os.Getenv(config.DYNAMODB_ENDPOINT),
+		AccessKey: os.Getenv(config.DYNAMODB_ACCESS_KEY),
+		SecretKey: os.Getenv(config.DYNAMODB_SECRET_KEY),
+	}
+	if err := dynamo.Init(ddbCfg); err != nil {
+		logger.Fatal("failed to initialize dynamodb", err)
+		os.Exit(1)
+	}
+
+	if err := jwt.InitializeKeys(); err != nil {
+		logger.Fatal("failed to initialize JWT keys", err)
+		os.Exit(1)
+	}
+
 	logger.Info("order-api private: bootstrap complete")
 }
 
 func main() {
+	// Adapters are nil until cart-api and shop-inventory-api HTTP clients land.
+	// Internal routes only read orders — no adapter dependency.
+	orderSvc := service.NewOrderService(nil, nil, nil)
+
 	// Private middleware stack: no CORS, CSRF, rate-limiting, or sanitization.
 	// Auth enforces JWT validity; RequireServiceScope enforces service-to-service scope claims.
 	internalMW := []func(http.Handler) http.Handler{
@@ -39,8 +85,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.HealthHandler)
 
-	// Internal order lookup — for returns and payments-api.
-	// TODO: implement GetOrderInternal handler once service layer supports it.
+	// Internal order lookup — no user ownership check; scope-checked JWT only.
+	mux.Handle("GET /internal/orders/{orderId}", mw.Chain(handlers.GetOrderInternal(orderSvc), internalMW...))
 
 	// Internal returns (RMA) routes — scope-checked JWT only.
 	mux.Handle("GET /internal/returns/{returnId}", mw.Chain(handlers.GetReturnInternal(), internalMW...))

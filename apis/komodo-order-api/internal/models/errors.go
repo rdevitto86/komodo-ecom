@@ -7,14 +7,13 @@ import (
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 )
 
+// ErrNotFound is returned when an order does not exist or is not visible to the caller.
+// Handlers map this to 404 — never 403, to avoid leaking order ID existence.
+var ErrNotFound = errors.New("not found")
+
 // ErrForbidden is a sentinel error for user-ownership violations.
 // Handlers map this to a 403 response via sendOrderError.
 var ErrForbidden = errors.New("forbidden")
-
-// ErrNotFound is a sentinel error for missing or inaccessible orders.
-// Used instead of ErrForbidden on the unified guest endpoint to prevent
-// order ID enumeration — ownership failures and missing orders look identical.
-var ErrNotFound = errors.New("not found")
 
 // 40xxx — komodo-order-api orders (see forge-sdk ranges.go)
 // 41xxx — komodo-order-api line items

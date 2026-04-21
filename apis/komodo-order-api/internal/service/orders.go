@@ -257,15 +257,16 @@ func (s *OrderService) PlaceOrderUnified(ctx context.Context, userID, email, che
 }
 
 // GetOrder retrieves a single order by ID, enforcing user ownership.
-// userID is the raw UUID from the JWT (without prefix). The comparison accounts
-// for the USER# prefix stored in order.UserID.
+// userID is the raw UUID from the JWT. The comparison accounts for the USER#
+// prefix stored in order.UserID. Returns ErrNotFound for any miss to prevent
+// leaking orderId existence via status-code differences.
 func (s *OrderService) GetOrder(ctx context.Context, userID, orderID string) (*models.Order, error) {
 	order, err := repo.GetOrder(ctx, orderID)
 	if err != nil {
-		return nil, fmt.Errorf("service.GetOrder: fetch: %w", err)
+		return nil, fmt.Errorf("service.GetOrder: %w", models.ErrNotFound)
 	}
 	if order.UserID != "USER#"+userID {
-		return nil, fmt.Errorf("service.GetOrder: %w", models.ErrForbidden)
+		return nil, fmt.Errorf("service.GetOrder: ownership mismatch: %w", models.ErrNotFound)
 	}
 	return order, nil
 }
@@ -297,15 +298,25 @@ func (s *OrderService) GetOrderUnified(ctx context.Context, userID, email, order
 	return order, nil
 }
 
-// ListOrders returns all orders for the authenticated user.
-// userID is the raw UUID from the JWT; the USER# prefix is applied here before
-// the GSI query.
-func (s *OrderService) ListOrders(ctx context.Context, userID string) ([]*models.Order, error) {
-	orders, err := repo.ListOrdersByUser(ctx, "USER#"+userID)
+// GetOrderInternal retrieves a single order by ID with no user ownership check.
+// Used by internal callers (payments-api, returns-api) that operate across users.
+// Protected at the transport layer by scope-checked JWT on the private server.
+func (s *OrderService) GetOrderInternal(ctx context.Context, orderID string) (*models.Order, error) {
+	order, err := repo.GetOrder(ctx, orderID)
 	if err != nil {
-		return nil, fmt.Errorf("service.ListOrders: %w", err)
+		return nil, fmt.Errorf("service.GetOrderInternal: %w", err)
 	}
-	return orders, nil
+	return order, nil
+}
+
+// ListOrders returns a paginated list of orders for the authenticated user.
+// limit and cursor are forwarded to the repo layer for DynamoDB-native pagination.
+func (s *OrderService) ListOrders(ctx context.Context, userID string, limit int, cursor string) ([]*models.Order, string, error) {
+	orders, nextCursor, err := repo.ListOrdersByUser(ctx, userID, limit, cursor)
+	if err != nil {
+		return nil, "", fmt.Errorf("service.ListOrders: %w", err)
+	}
+	return orders, nextCursor, nil
 }
 
 // idempotencyKey builds the Redis key for a checkout token.

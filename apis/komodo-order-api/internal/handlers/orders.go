@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"komodo-order-api/internal/models"
 	"komodo-order-api/internal/service"
@@ -82,6 +83,9 @@ func PlaceOrderUnified(svc *service.OrderService) http.HandlerFunc {
 }
 
 // GetOrder handles GET /me/orders/{orderId}.
+// Extracts userId from JWT context only — never from the URL.
+// Returns 404 for both missing orders and orders owned by a different user,
+// preventing callers from inferring orderId existence via status-code differences.
 func GetOrder(svc *service.OrderService) http.HandlerFunc {
 	return func(wtr http.ResponseWriter, req *http.Request) {
 		userID, ok := req.Context().Value(ctxKeys.USER_ID_KEY).(string)
@@ -109,6 +113,8 @@ func GetOrder(svc *service.OrderService) http.HandlerFunc {
 }
 
 // ListOrders handles GET /me/orders.
+// Supports cursor-based pagination via ?limit=<n>&cursor=<token> query params.
+// Extracts userId from JWT context; query is always scoped to the authenticated user.
 func ListOrders(svc *service.OrderService) http.HandlerFunc {
 	return func(wtr http.ResponseWriter, req *http.Request) {
 		userID, ok := req.Context().Value(ctxKeys.USER_ID_KEY).(string)
@@ -117,7 +123,47 @@ func ListOrders(svc *service.OrderService) http.HandlerFunc {
 			return
 		}
 
-		orders, err := svc.ListOrders(req.Context(), userID)
+		q := req.URL.Query()
+		limit := 0
+		if s := q.Get("limit"); s != "" {
+			n, err := strconv.Atoi(s)
+			if err != nil || n < 0 {
+				httpErr.SendError(wtr, req, httpErr.Global.BadRequest, httpErr.WithDetail("limit must be a positive integer"))
+				return
+			}
+			limit = n
+		}
+		cursor := q.Get("cursor")
+
+		orders, nextCursor, err := svc.ListOrders(req.Context(), userID, limit, cursor)
+		if err != nil {
+			sendOrderError(wtr, req, err)
+			return
+		}
+
+		resp := models.OrderListResponse{
+			Orders:     orders,
+			NextCursor: nextCursor,
+		}
+
+		wtr.Header().Set("Content-Type", "application/json")
+		wtr.WriteHeader(http.StatusOK)
+		json.NewEncoder(wtr).Encode(resp)
+	}
+}
+
+// GetOrderInternal handles GET /internal/orders/{orderId}.
+// No user ownership check — protected by scope-checked JWT on the private middleware stack.
+// Used by internal services: payments-api, returns-api.
+func GetOrderInternal(svc *service.OrderService) http.HandlerFunc {
+	return func(wtr http.ResponseWriter, req *http.Request) {
+		orderID := req.PathValue("orderId")
+		if orderID == "" {
+			httpErr.SendError(wtr, req, httpErr.Global.BadRequest, httpErr.WithDetail("orderId path parameter is required"))
+			return
+		}
+
+		order, err := svc.GetOrderInternal(req.Context(), orderID)
 		if err != nil {
 			sendOrderError(wtr, req, err)
 			return
@@ -125,7 +171,7 @@ func ListOrders(svc *service.OrderService) http.HandlerFunc {
 
 		wtr.Header().Set("Content-Type", "application/json")
 		wtr.WriteHeader(http.StatusOK)
-		json.NewEncoder(wtr).Encode(orders)
+		json.NewEncoder(wtr).Encode(order)
 	}
 }
 

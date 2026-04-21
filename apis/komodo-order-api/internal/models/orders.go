@@ -69,7 +69,7 @@ type Order struct {
 	ID          string       `json:"id"`              // internal PK, e.g. "ORD-001234"
 	DisplayID   string       `json:"displayId"`       // customer-facing label, e.g. "001234"
 	UserID      string       `json:"userId"`          // USER#<userId> for registered, GUEST#<uuid> for guests
-	Email       string       `json:"email,omitempty"` // universal key; present on all orders
+	Email       string       `json:"email,omitempty"` // universal key; required for guest order lookup
 	Status      OrderStatus  `json:"status"`
 	Items       []OrderItem  `json:"items"`
 	Address     OrderAddress `json:"address"`

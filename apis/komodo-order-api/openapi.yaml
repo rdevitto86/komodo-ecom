@@ -39,8 +39,7 @@ paths:
         callers. Email is the universal identity key.
 
         - **Authenticated caller (JWT present):** userID is taken from the JWT;
-          email in the request body is ignored. The order is linked to
-          `USER#<userId>`.
+          email in the request body is ignored. The order is linked to `USER#<userId>`.
         - **Guest caller (no JWT):** `email` is required in the request body. At
           placement, the email is looked up in user-api. If a registered account
           exists, the order is linked to `USER#<userId>` and an "order added to
@@ -64,6 +63,51 @@ paths:
                 $ref: "#/components/schemas/Order"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: Get order (guest-compatible)
+      operationId: getOrderUnified
+      security: []
+      description: |
+        Retrieves a single order by ID. Supports both authenticated and guest access.
+
+        **Authenticated (JWT present):** ownership is validated via the user ID in the token.
+        The stored UserID may be prefixed as `USER#<uuid>` for registered users — both
+        forms are accepted.
+
+        **Guest (no JWT):** the `email` query parameter is required and must match the
+        email stored on the order (case-insensitive). Any mismatch returns 404 to prevent
+        order ID enumeration.
+
+        Designed for confirmation email deep links: `GET /orders/{orderId}?email=<email>`
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: email
+          in: query
+          required: false
+          description: Required when no JWT is provided. Must match the email on the order.
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Order detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -431,13 +475,11 @@ components:
           description: Customer-facing order label
         userId:
           type: string
-          description: |
-            GSI key for the order owner. Prefixed: `USER#<id>` for registered
-            accounts, `GUEST#<uuid>` for guest placements.
+          description: GSI key for the order owner. `USER#<id>` for registered accounts, `GUEST#<uuid>` for guests.
         email:
           type: string
           format: email
-          description: Universal identity key. Present on all orders.
+          description: Universal identity key; required for guest order lookup.
         status:
           type: string
           enum: [pending, confirmed, processing, shipped, delivered, cancelled, refunded]

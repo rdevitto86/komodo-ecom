@@ -134,9 +134,8 @@ func main() {
 	}
 
 	// guestWriteMW is the same as writeMW but without AuthMiddleware, allowing
-	// unauthenticated (guest) callers through. The handler is responsible for
-	// validating identity — either via the optional userID in context (set if the
-	// request included a valid JWT) or via the email field in the request body.
+	// unauthenticated (guest) callers through. The handler validates identity
+	// via optional JWT context or email in the request body.
 	guestWriteMW := []func(http.Handler) http.Handler{
 		mw.RequestIDMiddleware,
 		mw.TelemetryMiddleware,
@@ -150,11 +149,28 @@ func main() {
 		mw.IdempotencyMiddleware,
 	}
 
+	// guestReadMW is the read stack without AuthMiddleware — JWT is optional.
+	// Used for GET /orders/{orderId} which supports both authenticated and guest access.
+	guestReadMW := []func(http.Handler) http.Handler{
+		mw.RequestIDMiddleware,
+		mw.TelemetryMiddleware,
+		mw.RateLimiterMiddleware,
+		mw.CORSMiddleware,
+		mw.SecurityHeadersMiddleware,
+		mw.NormalizationMiddleware,
+		mw.RuleValidationMiddleware,
+		mw.SanitizationMiddleware,
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.HealthHandler)
 
 	// Unified order submission — optional JWT; email required for guests.
 	mux.Handle("POST /orders", mw.Chain(handlers.PlaceOrderUnified(orderSvc), guestWriteMW...))
+
+	// Guest-compatible unified order lookup — no JWT required.
+	// Registered before /me/orders/{orderId} to avoid ServeMux ambiguity.
+	mux.Handle("GET /orders/{orderId}", mw.Chain(handlers.GetOrderUnified(orderSvc), guestReadMW...))
 
 	// Authenticated order routes — require JWT.
 	mux.Handle("POST /me/orders", mw.Chain(handlers.PlaceOrder(orderSvc), writeMW...))

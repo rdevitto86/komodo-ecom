@@ -30,7 +30,7 @@ type orderRecord struct {
 	ID        string `dynamodbav:"id"`
 	DisplayID string `dynamodbav:"display_id"`
 	UserID    string `dynamodbav:"user_id"`
-	Email     string `dynamodbav:"email,omitempty"` // universal identity key; present on all orders
+	Email     string `dynamodbav:"email,omitempty"`
 	Status    string `dynamodbav:"status"`
 	CreatedAt string `dynamodbav:"created_at"`
 	UpdatedAt string `dynamodbav:"updated_at"`

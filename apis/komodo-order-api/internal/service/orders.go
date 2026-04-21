@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"komodo-order-api/internal/config"
@@ -265,6 +266,33 @@ func (s *OrderService) GetOrder(ctx context.Context, userID, orderID string) (*m
 	}
 	if order.UserID != "USER#"+userID {
 		return nil, fmt.Errorf("service.GetOrder: %w", models.ErrForbidden)
+	}
+	return order, nil
+}
+
+// GetOrderUnified retrieves an order for either an authenticated user or a guest.
+// If userID is non-empty (JWT present), ownership is enforced via UserID field.
+// The stored UserID may be prefixed as "USER#<uuid>" for registered users, so
+// both the raw uuid and the prefixed form are accepted.
+// If userID is empty (no JWT), ownership is enforced via case-insensitive email match.
+// Returns ErrNotFound for any ownership mismatch to prevent order ID enumeration.
+func (s *OrderService) GetOrderUnified(ctx context.Context, userID, email, orderID string) (*models.Order, error) {
+	order, err := repo.GetOrder(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("service.GetOrderUnified: fetch: %w", models.ErrNotFound)
+	}
+
+	if userID != "" {
+		// Authenticated path — accept both raw uuid and USER#<uuid> prefix.
+		if order.UserID != userID && order.UserID != "USER#"+userID {
+			return nil, fmt.Errorf("service.GetOrderUnified: ownership mismatch: %w", models.ErrNotFound)
+		}
+		return order, nil
+	}
+
+	// Guest path — require non-empty email and case-insensitive match.
+	if email == "" || !strings.EqualFold(order.Email, email) {
+		return nil, fmt.Errorf("service.GetOrderUnified: email mismatch: %w", models.ErrNotFound)
 	}
 	return order, nil
 }

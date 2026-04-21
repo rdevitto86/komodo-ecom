@@ -28,6 +28,45 @@ paths:
         "200":
           description: Service is healthy
 
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Place order (unified — guest or authenticated)
+      operationId: placeOrderUnified
+      security: []
+      description: |
+        Unified order submission route that accepts both authenticated and guest
+        callers. Email is the universal identity key.
+
+        - **Authenticated caller (JWT present):** userID is taken from the JWT;
+          email in the request body is ignored. The order is linked to
+          `USER#<userId>`.
+        - **Guest caller (no JWT):** `email` is required in the request body. At
+          placement, the email is looked up in user-api. If a registered account
+          exists, the order is linked to `USER#<userId>` and an "order added to
+          your account" notification is queued. Otherwise the order is keyed as
+          `GUEST#<uuid>`.
+
+        Idempotent — duplicate requests with the same `checkoutToken` return the
+        original order (Redis-backed, 24h TTL).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnifiedPlaceOrderRequest"
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /me/orders:
     post:
       tags: [Orders]
@@ -367,6 +406,20 @@ components:
           type: string
           description: Checkout token issued by cart-api after /me/cart/checkout
 
+    UnifiedPlaceOrderRequest:
+      type: object
+      required: [checkoutToken]
+      properties:
+        checkoutToken:
+          type: string
+          description: Checkout token issued by cart-api after /me/cart/checkout
+        email:
+          type: string
+          format: email
+          description: |
+            Required for guest callers (no JWT). Ignored when a valid JWT is
+            present — identity is taken from the token in that case.
+
     Order:
       type: object
       properties:
@@ -378,6 +431,13 @@ components:
           description: Customer-facing order label
         userId:
           type: string
+          description: |
+            GSI key for the order owner. Prefixed: `USER#<id>` for registered
+            accounts, `GUEST#<uuid>` for guest placements.
+        email:
+          type: string
+          format: email
+          description: Universal identity key. Present on all orders.
         status:
           type: string
           enum: [pending, confirmed, processing, shipped, delivered, cancelled, refunded]

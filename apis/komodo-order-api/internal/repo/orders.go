@@ -21,6 +21,7 @@ var table = os.Getenv(config.DYNAMODB_ORDERS_TABLE)
 
 // orderRecord is the METADATA row for an order, keyed by PK=ORDER#<id>, SK=METADATA.
 // GSI1 enables listing all orders for a user in creation-time order.
+// GSI1PK is USER#<userId> for registered accounts and GUEST#<uuid> for guests.
 type orderRecord struct {
 	PK        string `dynamodbav:"PK"`
 	SK        string `dynamodbav:"SK"`
@@ -29,15 +30,16 @@ type orderRecord struct {
 	ID        string `dynamodbav:"id"`
 	DisplayID string `dynamodbav:"display_id"`
 	UserID    string `dynamodbav:"user_id"`
+	Email     string `dynamodbav:"email,omitempty"` // universal identity key; present on all orders
 	Status    string `dynamodbav:"status"`
 	CreatedAt string `dynamodbav:"created_at"`
 	UpdatedAt string `dynamodbav:"updated_at"`
 
 	// Nested sub-documents stored as DynamoDB maps.
-	Items   []models.OrderItem   `dynamodbav:"items"`
-	Address models.OrderAddress  `dynamodbav:"address"`
-	Payment models.OrderPayment  `dynamodbav:"payment"`
-	Totals  models.OrderTotals   `dynamodbav:"totals"`
+	Items   []models.OrderItem  `dynamodbav:"items"`
+	Address models.OrderAddress `dynamodbav:"address"`
+	Payment models.OrderPayment `dynamodbav:"payment"`
+	Totals  models.OrderTotals  `dynamodbav:"totals"`
 }
 
 func orderPK(orderID string) string    { return "ORDER#" + orderID }
@@ -50,16 +52,20 @@ func orderGSI1SK(createdAt, orderID string) string {
 // Key scheme:
 //
 //	PK=ORDER#<orderID>  SK=METADATA
-//	GSI1PK=USER#<userID>  GSI1SK=ORDER#<createdAt>#<orderID>
+//	GSI1PK=<order.UserID>  GSI1SK=ORDER#<createdAt>#<orderID>
+//
+// order.UserID is expected to already carry the key prefix: USER#<id> for
+// registered accounts, GUEST#<uuid> for unauthenticated placements.
 func CreateOrder(ctx context.Context, order *models.Order) error {
 	rec := orderRecord{
 		PK:        orderPK(order.ID),
 		SK:        "METADATA",
-		GSI1PK:    userGSI1PK(order.UserID),
+		GSI1PK:    order.UserID, // already prefixed: USER#<id> or GUEST#<uuid>
 		GSI1SK:    orderGSI1SK(order.CreatedAt, order.ID),
 		ID:        order.ID,
 		DisplayID: order.DisplayID,
 		UserID:    order.UserID,
+		Email:     order.Email,
 		Status:    string(order.Status),
 		CreatedAt: order.CreatedAt,
 		UpdatedAt: order.UpdatedAt,
@@ -104,6 +110,7 @@ func recordToOrder(raw map[string]ddbTypes.AttributeValue) (*models.Order, error
 		ID:        rec.ID,
 		DisplayID: rec.DisplayID,
 		UserID:    rec.UserID,
+		Email:     rec.Email,
 		Status:    models.OrderStatus(rec.Status),
 		Items:     rec.Items,
 		Address:   rec.Address,

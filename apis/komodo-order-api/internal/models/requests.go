@@ -5,3 +5,11 @@ package models
 type PlaceOrderRequest struct {
 	CheckoutToken string `json:"checkoutToken"`
 }
+
+// UnifiedPlaceOrderRequest is the body for POST /orders.
+// Accepts both authenticated (JWT) and guest requests. Email is required when
+// no JWT is present; it is ignored if the JWT already carries an identity.
+type UnifiedPlaceOrderRequest struct {
+	CheckoutToken string `json:"checkoutToken"`
+	Email         string `json:"email,omitempty"` // required if no JWT; ignored if JWT present
+}

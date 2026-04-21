@@ -102,7 +102,9 @@ func main() {
 	//
 	// TODO: wire real adapters once cart-api and shop-inventory-api HTTP clients
 	// are implemented under internal/adapters/.
-	orderSvc := service.NewOrderService(nil, nil)
+	// nil adapters: cart, inventory, and user service adapters are not yet wired.
+	// TODO: wire real adapters once HTTP clients land under internal/adapters/.
+	orderSvc := service.NewOrderService(nil, nil, nil)
 
 	writeMW := []func(http.Handler) http.Handler{
 		mw.RequestIDMiddleware,
@@ -131,8 +133,28 @@ func main() {
 		mw.SanitizationMiddleware,
 	}
 
+	// guestWriteMW is the same as writeMW but without AuthMiddleware, allowing
+	// unauthenticated (guest) callers through. The handler is responsible for
+	// validating identity — either via the optional userID in context (set if the
+	// request included a valid JWT) or via the email field in the request body.
+	guestWriteMW := []func(http.Handler) http.Handler{
+		mw.RequestIDMiddleware,
+		mw.TelemetryMiddleware,
+		mw.RateLimiterMiddleware,
+		mw.CORSMiddleware,
+		mw.SecurityHeadersMiddleware,
+		mw.CSRFMiddleware,
+		mw.NormalizationMiddleware,
+		mw.RuleValidationMiddleware,
+		mw.SanitizationMiddleware,
+		mw.IdempotencyMiddleware,
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.HealthHandler)
+
+	// Unified order submission — optional JWT; email required for guests.
+	mux.Handle("POST /orders", mw.Chain(handlers.PlaceOrderUnified(orderSvc), guestWriteMW...))
 
 	// Authenticated order routes — require JWT.
 	mux.Handle("POST /me/orders", mw.Chain(handlers.PlaceOrder(orderSvc), writeMW...))

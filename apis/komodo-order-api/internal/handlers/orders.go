@@ -44,6 +44,43 @@ func PlaceOrder(svc *service.OrderService) http.HandlerFunc {
 	}
 }
 
+// PlaceOrderUnified handles POST /orders.
+// Accepts both authenticated (JWT) and guest callers. When a JWT is present,
+// the userID from context is used and any email in the request body is ignored.
+// When no JWT is present, the email field is required and is used to look up or
+// create a guest identity at the service layer.
+func PlaceOrderUnified(svc *service.OrderService) http.HandlerFunc {
+	return func(wtr http.ResponseWriter, req *http.Request) {
+		// userID may be empty for unauthenticated (guest) callers.
+		userID, _ := req.Context().Value(ctxKeys.USER_ID_KEY).(string)
+
+		var body models.UnifiedPlaceOrderRequest
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			httpErr.SendError(wtr, req, httpErr.Global.BadRequest, httpErr.WithDetail("invalid request body"))
+			return
+		}
+		if body.CheckoutToken == "" {
+			httpErr.SendError(wtr, req, httpErr.Global.BadRequest, httpErr.WithDetail("checkoutToken is required"))
+			return
+		}
+		// Email is only required when there is no authenticated identity.
+		if userID == "" && body.Email == "" {
+			httpErr.SendError(wtr, req, httpErr.Global.BadRequest, httpErr.WithDetail("email is required for guest orders"))
+			return
+		}
+
+		order, err := svc.PlaceOrderUnified(req.Context(), userID, body.Email, body.CheckoutToken)
+		if err != nil {
+			sendOrderError(wtr, req, err)
+			return
+		}
+
+		wtr.Header().Set("Content-Type", "application/json")
+		wtr.WriteHeader(http.StatusCreated)
+		json.NewEncoder(wtr).Encode(order)
+	}
+}
+
 // GetOrder handles GET /me/orders/{orderId}.
 func GetOrder(svc *service.OrderService) http.HandlerFunc {
 	return func(wtr http.ResponseWriter, req *http.Request) {

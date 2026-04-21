@@ -66,16 +66,17 @@ func (n OrderNumber) DisplayID(parentSeq uint64, childIndex int) string {
 
 // Order is the root purchase entity.
 type Order struct {
-	ID          string      `json:"id"`          // internal PK, e.g. "ORD-001234"
-	DisplayID   string      `json:"displayId"`   // customer-facing label, e.g. "001234"
-	UserID      string      `json:"userId"`
-	Status      OrderStatus `json:"status"`
-	Items       []OrderItem `json:"items"`
+	ID          string       `json:"id"`               // internal PK, e.g. "ORD-001234"
+	DisplayID   string       `json:"displayId"`        // customer-facing label, e.g. "001234"
+	UserID      string       `json:"userId"`
+	Email       string       `json:"email,omitempty"` // stored for guest order lookup
+	Status      OrderStatus  `json:"status"`
+	Items       []OrderItem  `json:"items"`
 	Address     OrderAddress `json:"address"`
 	Payment     OrderPayment `json:"payment"`
 	Totals      OrderTotals  `json:"totals"`
-	CreatedAt   string      `json:"createdAt"`
-	UpdatedAt   string      `json:"updatedAt"`
+	CreatedAt   string       `json:"createdAt"`
+	UpdatedAt   string       `json:"updatedAt"`
 }
 
 // Return is a derivative of an Order representing a customer return request.

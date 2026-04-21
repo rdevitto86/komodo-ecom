@@ -28,6 +28,53 @@ paths:
         "200":
           description: Service is healthy
 
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: Get order (guest-compatible)
+      operationId: getOrderUnified
+      description: |
+        Retrieves a single order by ID. Supports both authenticated and guest access.
+
+        **Authenticated (JWT present):** ownership is validated via the user ID in the token.
+        The stored UserID may be prefixed as `USER#<uuid>` for registered users — both
+        forms are accepted.
+
+        **Guest (no JWT):** the `email` query parameter is required and must match the
+        email stored on the order (case-insensitive). Any mismatch returns 404 to prevent
+        order ID enumeration.
+
+        This endpoint is designed for the confirmation email deep link:
+        `GET /orders/{orderId}?email=<email>` — the email is auto-populated by the mailer
+        so the guest never sees a lookup form.
+      security: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: email
+          in: query
+          required: false
+          description: Required when no JWT is provided. Must match the email on the order.
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Order detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /me/orders:
     post:
       tags: [Orders]
@@ -378,6 +425,10 @@ components:
           description: Customer-facing order label
         userId:
           type: string
+        email:
+          type: string
+          format: email
+          description: Contact email for the order. Omitted from responses for privacy on authenticated paths.
         status:
           type: string
           enum: [pending, confirmed, processing, shipped, delivered, cancelled, refunded]

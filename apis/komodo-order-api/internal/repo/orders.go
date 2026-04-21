@@ -29,6 +29,7 @@ type orderRecord struct {
 	ID        string `dynamodbav:"id"`
 	DisplayID string `dynamodbav:"display_id"`
 	UserID    string `dynamodbav:"user_id"`
+	Email     string `dynamodbav:"email"`
 	Status    string `dynamodbav:"status"`
 	CreatedAt string `dynamodbav:"created_at"`
 	UpdatedAt string `dynamodbav:"updated_at"`
@@ -60,6 +61,7 @@ func CreateOrder(ctx context.Context, order *models.Order) error {
 		ID:        order.ID,
 		DisplayID: order.DisplayID,
 		UserID:    order.UserID,
+		Email:     order.Email,
 		Status:    string(order.Status),
 		CreatedAt: order.CreatedAt,
 		UpdatedAt: order.UpdatedAt,
@@ -104,6 +106,7 @@ func recordToOrder(raw map[string]ddbTypes.AttributeValue) (*models.Order, error
 		ID:        rec.ID,
 		DisplayID: rec.DisplayID,
 		UserID:    rec.UserID,
+		Email:     rec.Email,
 		Status:    models.OrderStatus(rec.Status),
 		Items:     rec.Items,
 		Address:   rec.Address,

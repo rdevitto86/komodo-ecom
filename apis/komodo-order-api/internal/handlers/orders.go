@@ -92,6 +92,44 @@ func ListOrders(svc *service.OrderService) http.HandlerFunc {
 	}
 }
 
+// GetOrderUnified handles GET /orders/{orderId}.
+// Supports both authenticated (JWT) and guest (email query param) access.
+// If a JWT is present the userID is extracted and used for ownership validation.
+// If no JWT is present the ?email query param is required and validated against
+// the email stored on the order. In both cases a missing or mismatched identity
+// results in 404 to prevent order ID enumeration.
+func GetOrderUnified(svc *service.OrderService) http.HandlerFunc {
+	return func(wtr http.ResponseWriter, req *http.Request) {
+		// userID is optional — may be empty string when no JWT is provided.
+		userID, _ := req.Context().Value(ctxKeys.USER_ID_KEY).(string)
+
+		orderID := req.PathValue("orderId")
+		if orderID == "" {
+			httpErr.SendError(wtr, req, httpErr.Global.BadRequest, httpErr.WithDetail("orderId path parameter is required"))
+			return
+		}
+
+		var email string
+		if userID == "" {
+			email = req.URL.Query().Get("email")
+			if email == "" {
+				httpErr.SendError(wtr, req, httpErr.Global.BadRequest, httpErr.WithDetail("email query parameter is required for unauthenticated requests"))
+				return
+			}
+		}
+
+		order, err := svc.GetOrderUnified(req.Context(), userID, email, orderID)
+		if err != nil {
+			sendOrderError(wtr, req, err)
+			return
+		}
+
+		wtr.Header().Set("Content-Type", "application/json")
+		wtr.WriteHeader(http.StatusOK)
+		json.NewEncoder(wtr).Encode(order)
+	}
+}
+
 // CancelOrder handles POST /me/orders/{orderId}/cancel.
 // Stubbed — cancellation logic (status transition validation, refund trigger) not yet implemented.
 func CancelOrder(_ *service.OrderService) http.HandlerFunc {
@@ -103,6 +141,8 @@ func CancelOrder(_ *service.OrderService) http.HandlerFunc {
 // sendOrderError maps domain errors to RFC 7807 responses.
 func sendOrderError(wtr http.ResponseWriter, req *http.Request, err error) {
 	switch {
+	case errors.Is(err, models.ErrNotFound):
+		httpErr.SendError(wtr, req, models.Err.NotFound)
 	case errors.Is(err, models.ErrForbidden):
 		httpErr.SendError(wtr, req, httpErr.Global.Forbidden)
 	default:

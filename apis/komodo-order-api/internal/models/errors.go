@@ -11,6 +11,11 @@ import (
 // Handlers map this to a 403 response via sendOrderError.
 var ErrForbidden = errors.New("forbidden")
 
+// ErrNotFound is a sentinel error for missing or inaccessible orders.
+// Used instead of ErrForbidden on the unified guest endpoint to prevent
+// order ID enumeration — ownership failures and missing orders look identical.
+var ErrNotFound = errors.New("not found")
+
 // 40xxx — komodo-order-api orders (see forge-sdk ranges.go)
 // 41xxx — komodo-order-api line items
 type OrderAPIErrors struct {

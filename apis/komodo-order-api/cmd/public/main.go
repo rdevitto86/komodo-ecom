@@ -131,8 +131,26 @@ func main() {
 		mw.SanitizationMiddleware,
 	}
 
+	// guestReadMW is the read stack without AuthMiddleware — JWT is optional.
+	// Used only for GET /orders/{orderId} which supports both authenticated and
+	// guest access. Rate limiting is still applied per-IP via RateLimiterMiddleware.
+	guestReadMW := []func(http.Handler) http.Handler{
+		mw.RequestIDMiddleware,
+		mw.TelemetryMiddleware,
+		mw.RateLimiterMiddleware,
+		mw.CORSMiddleware,
+		mw.SecurityHeadersMiddleware,
+		mw.NormalizationMiddleware,
+		mw.RuleValidationMiddleware,
+		mw.SanitizationMiddleware,
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.HealthHandler)
+
+	// Guest-compatible unified order lookup — no JWT required.
+	// Registered before /me/orders/{orderId} to avoid ServeMux ambiguity.
+	mux.Handle("GET /orders/{orderId}", mw.Chain(handlers.GetOrderUnified(orderSvc), guestReadMW...))
 
 	// Authenticated order routes — require JWT.
 	mux.Handle("POST /me/orders", mw.Chain(handlers.PlaceOrder(orderSvc), writeMW...))

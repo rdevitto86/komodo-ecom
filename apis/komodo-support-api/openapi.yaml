@@ -3,9 +3,15 @@ info:
   title: komodo-support-api
   version: "0.1.0"
   description: |
-    Customer support service with AI-powered chat. Supports both anonymous (cookie session) and authenticated (JWT) users.
+    Customer support service with AI-powered chat. Supports both anonymous (cookie session)
+    and authenticated (JWT) users. Currently backed by in-memory storage — wire DynamoDB before prod.
+
+    HTTP conventions: POST → 201 Created / 400 Bad Request / 409 Conflict;
+    PUT → 200 OK / 404 Not Found; DELETE → 204 No Content / 404 Not Found;
+    GET → 200 OK / 404 Not Found.
+
 servers:
-  - url: http://localhost:7037
+  - url: http://localhost:7101
     description: Local dev
 
 tags:
@@ -24,11 +30,12 @@ paths:
         "200":
           description: Service is healthy
 
-  /chat/session:
+  /v1/chat/session:
     post:
       tags: [Session]
       summary: Create a new chat session
       operationId: createSession
+      x-visibility: public
       security: []
       responses:
         "201":
@@ -41,6 +48,7 @@ paths:
       tags: [Session]
       summary: Get current chat session
       operationId: getSession
+      x-visibility: public
       security: []
       responses:
         "200":
@@ -50,11 +58,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/Session"
 
-  /chat/message:
+  /v1/chat/message:
     post:
       tags: [Chat]
       summary: Send a message to the AI support agent
       operationId: sendMessage
+      x-visibility: public
       security: []
       requestBody:
         required: true
@@ -70,12 +79,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
-  /chat/history:
+  /v1/chat/history:
     get:
       tags: [Chat]
-      summary: Get chat history for current session
+      summary: Get chat history for a session
       operationId: getHistory
+      x-visibility: public
       security: []
+      parameters:
+        - name: session
+          in: query
+          required: true
+          description: |
+            Session ID to fetch history for. [TODO] wildcard fetch (omit param) to return all
+            messages for the authenticated user is not yet implemented.
+          schema:
+            type: string
+            format: uuid
       responses:
         "200":
           description: Chat history
@@ -87,16 +107,18 @@ paths:
       tags: [Chat]
       summary: Delete chat history for current session
       operationId: deleteHistory
+      x-visibility: public
       security: []
       responses:
         "204":
           description: History deleted
 
-  /chat/escalate:
+  /v1/chat/escalate:
     post:
       tags: [Chat]
       summary: Escalate to human support
       operationId: escalate
+      x-visibility: public
       security: []
       requestBody:
         required: true
@@ -111,30 +133,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EscalationResponse"
-
-  /me/chat/history:
-    get:
-      tags: [Chat]
-      summary: Get chat history for authenticated user
-      operationId: getAuthenticatedHistory
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: User's chat history
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChatHistory"
-    delete:
-      tags: [Chat]
-      summary: Delete chat history for authenticated user
-      operationId: deleteAuthenticatedHistory
-      security:
-        - bearerAuth: []
-      responses:
-        "204":
-          description: History deleted
 
 components:
   securitySchemes:

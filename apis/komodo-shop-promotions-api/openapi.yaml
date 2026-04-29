@@ -2,14 +2,34 @@ openapi: "3.1.0"
 info:
   title: komodo-shop-promotions-api
   version: "1.0.0"
-  description: Promo code validation and automatic discount management. Public validate route supports guest checkout; admin routes require internal service JWT.
+  description: |
+    Promo code validation and automatic discount management.
+
+    **Two servers:**
+    - Public (7045): validate and list promotions for customers (guest-friendly)
+    - Internal (7046): admin promotion management for service-to-service calls
+
+    **HTTP conventions:**
+    - POST → 201 Created / 400 Bad Request / 409 Conflict
+    - PUT → 200 OK / 404 Not Found
+    - DELETE → 204 No Content / 404 Not Found
+    - GET → 200 OK / 404 Not Found
+
 servers:
   - url: http://localhost:7045
-    description: Local dev
+    description: Public (local)
+  - url: http://localhost:7046
+    description: Internal (local)
+
+tags:
+  - name: Health
+  - name: Validate
+  - name: Promotions
 
 paths:
   /health:
     get:
+      tags: [Health]
       summary: Liveness check
       operationId: getHealth
       security: []
@@ -17,10 +37,12 @@ paths:
         "200":
           description: OK
 
-  /promotions/validate:
+  /v1/validate:
     post:
+      tags: [Validate]
       summary: Validate a promo code against a cart
       operationId: validatePromo
+      x-visibility: public
       security: []
       requestBody:
         required: true
@@ -46,48 +68,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
 
-  /me/promotions:
+  /v1/promotions:
     get:
-      summary: List applicable automatic promotions for the authenticated user
-      operationId: listMyPromotions
+      tags: [Promotions]
+      summary: |
+        Public: list applicable automatic promotions for the requesting user or guest.
+        Internal: list all promotions with optional status filter (admin).
+        Route is port-disambiguated — 7045 serves the public view, 7046 serves the admin view.
+      operationId: listPromotions
+      x-visibility: public
       security:
         - bearerAuth: []
+        - {}
       parameters:
         - name: cart_subtotal_cents
           in: query
           schema:
             type: integer
-          description: Current cart subtotal for condition evaluation
-      responses:
-        "200":
-          description: Applicable promotions
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PromotionList"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
-  /internal/promotions:
-    get:
-      summary: List all promotions (admin)
-      operationId: listPromotions
-      security:
-        - bearerAuth: []
-      parameters:
+          description: (Public) Current cart subtotal for condition evaluation
         - name: status
           in: query
           schema:
             $ref: "#/components/schemas/PromotionStatus"
+          description: (Internal) Filter by promotion status
         - name: limit
           in: query
           schema:
             type: integer
             default: 50
+          description: (Internal) Max results to return
         - name: cursor
           in: query
           schema:
             type: string
+          description: (Internal) Pagination cursor
       responses:
         "200":
           description: Promotion list
@@ -98,8 +112,10 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
     post:
-      summary: Create a promotion
+      tags: [Promotions]
+      summary: Create a promotion (internal only)
       operationId: createPromotion
+      x-visibility: private
       security:
         - bearerAuth: []
       requestBody:
@@ -120,10 +136,29 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /internal/promotions/{promoId}:
+  /v1/promotions/{promoId}:
+    get:
+      tags: [Promotions]
+      summary: Get a single promotion by ID (public)
+      operationId: getPromotion
+      x-visibility: public
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/PromoId"
+      responses:
+        "200":
+          description: Promotion details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Promotion"
+        "404":
+          $ref: "#/components/responses/NotFound"
     put:
-      summary: Update a promotion
+      tags: [Promotions]
+      summary: Update a promotion (internal only)
       operationId: updatePromotion
+      x-visibility: private
       security:
         - bearerAuth: []
       parameters:
@@ -148,8 +183,10 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
-      summary: Deactivate a promotion
+      tags: [Promotions]
+      summary: Deactivate a promotion (internal only)
       operationId: deactivatePromotion
+      x-visibility: private
       security:
         - bearerAuth: []
       parameters:

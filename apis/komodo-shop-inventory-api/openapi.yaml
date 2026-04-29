@@ -5,9 +5,16 @@ info:
   description: |
     Stock tracking and reservation service. Internal-only — all routes except /health
     require an internal service JWT (client_credentials scope).
+
+    **HTTP conventions:**
+    - POST → 201 Created / 400 Bad Request / 409 Conflict
+    - PUT → 200 OK / 404 Not Found
+    - DELETE → 204 No Content / 404 Not Found
+    - GET → 200 OK / 404 Not Found
+
 servers:
   - url: http://localhost:7044
-    description: Local dev
+    description: Internal (local)
 
 paths:
   /health:
@@ -19,10 +26,11 @@ paths:
         "200":
           description: OK
 
-  /stock:
+  /v1/stock:
     get:
       summary: Batch stock levels for a list of SKUs
       operationId: getBatchStock
+      x-visibility: private
       security:
         - bearerAuth: []
       parameters:
@@ -50,10 +58,11 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /stock/{sku}:
+  /v1/stock/{sku}:
     get:
       summary: Get stock level for a single SKU
       operationId: getStock
+      x-visibility: private
       security:
         - bearerAuth: []
       parameters:
@@ -70,10 +79,11 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /stock/{sku}/reserve:
+  /v1/stock/{sku}/reserve:
     post:
       summary: Place a stock hold
       operationId: reserveStock
+      x-visibility: private
       security:
         - bearerAuth: []
       parameters:
@@ -102,10 +112,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
 
-  /stock/{sku}/reserve/{holdId}:
+  /v1/stock/{sku}/reserve/{holdId}:
     delete:
       summary: Release a stock hold early
       operationId: releaseHold
+      x-visibility: private
       security:
         - bearerAuth: []
       parameters:
@@ -119,10 +130,11 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /stock/{sku}/confirm:
+  /v1/stock/{sku}/confirm:
     post:
       summary: Convert hold to confirmed decrement on order confirmation
       operationId: confirmStock
+      x-visibility: private
       security:
         - bearerAuth: []
       parameters:
@@ -147,10 +159,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
 
-  /stock/{sku}/restock:
+  /v1/stock/{sku}/restock:
     post:
       summary: Increment stock (new stock received or return processed)
       operationId: restockSku
+      x-visibility: private
       security:
         - bearerAuth: []
       parameters:

@@ -5,9 +5,17 @@ info:
   description: |
     Address validation, normalization, and geocoding via a third-party provider (e.g. SmartyStreets, Google).
     All routes require a user-scoped JWT.
+
+    **HTTP conventions:**
+    POST → 201 Created / 400 Bad Request / 409 Conflict;
+    PUT → 200 OK / 404 Not Found;
+    DELETE → 204 No Content / 404 Not Found;
+    GET → 200 OK / 404 Not Found.
+
+    Note: address operations return 200 (not 201) because they are stateless — no resource is created.
 servers:
   - url: http://localhost:7031
-    description: Local dev
+    description: Local dev (Lambda)
 
 tags:
   - name: Health
@@ -25,11 +33,12 @@ paths:
         "200":
           description: Service is healthy
 
-  /addresses/validate:
+  /v1/addresses/validate:
     post:
       tags: [Addresses]
       summary: Validate an address
       operationId: validateAddress
+      x-visibility: public
       security:
         - bearerAuth: []
       requestBody:
@@ -56,11 +65,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
 
-  /addresses/normalize:
+  /v1/addresses/normalize:
     post:
       tags: [Addresses]
       summary: Normalize an address to a standardized format
       operationId: normalizeAddress
+      x-visibility: public
       security:
         - bearerAuth: []
       requestBody:
@@ -87,11 +97,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
 
-  /addresses/geocode:
+  /v1/addresses/geocode:
     post:
       tags: [Addresses]
       summary: Geocode an address to lat/lng coordinates
       operationId: geocodeAddress
+      x-visibility: public
       security:
         - bearerAuth: []
       requestBody:

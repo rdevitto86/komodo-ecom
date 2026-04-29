@@ -6,7 +6,7 @@ import (
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 )
 
-// 71xxx — komodo-event-bus-api (see forge-sdk ranges.go)
+// 71xxx — komodo-events-api (see forge-sdk ranges.go)
 type EventsAPIErrors struct {
 	UnknownType   httpErr.ErrorCode
 	PublishFailed httpErr.ErrorCode

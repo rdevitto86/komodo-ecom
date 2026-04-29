@@ -4,10 +4,16 @@ info:
   version: "0.1.0"
   description: |
     Full-text search over the product and service catalog via Typesense.
-    No authentication required — public read-only endpoint.
+    Public search requires no authentication. Index management routes are private (service-to-service only).
 
     **Note:** Typesense integration is not yet wired. Search returns empty results until
     the index is populated via the event-bus subscriber.
+
+    **HTTP conventions:**
+    POST → 201 Created / 400 Bad Request / 409 Conflict;
+    PUT → 200 OK / 404 Not Found;
+    DELETE → 204 No Content / 404 Not Found;
+    GET → 200 OK / 404 Not Found.
 servers:
   - url: http://localhost:7042
     description: Local dev
@@ -15,6 +21,7 @@ servers:
 tags:
   - name: Health
   - name: Search
+  - name: Index
 
 paths:
 
@@ -28,11 +35,12 @@ paths:
         "200":
           description: Service is healthy
 
-  /search:
+  /v1/search:
     get:
       tags: [Search]
       summary: Search the product and service catalog
       operationId: search
+      x-visibility: public
       security: []
       parameters:
         - name: q
@@ -70,7 +78,53 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
 
+  /v1/index/sync:
+    post:
+      tags: [Index]
+      summary: Trigger a full re-index from shop-items-api S3 data into Typesense
+      operationId: indexSync
+      x-visibility: private
+      security:
+        - bearerAuth: []
+      responses:
+        "202":
+          description: Sync job accepted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: Typesense unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /v1/index:
+    delete:
+      tags: [Index]
+      summary: Drop and recreate the Typesense collection (used for schema migrations)
+      operationId: deleteIndex
+      x-visibility: private
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Index dropped and recreated
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: Typesense unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     SearchResult:
       type: object
@@ -140,6 +194,12 @@ components:
   responses:
     BadRequest:
       description: Invalid query parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing or invalid service JWT
       content:
         application/problem+json:
           schema:

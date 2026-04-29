@@ -1,6 +1,6 @@
 //go:build e2e
 
-// Package e2e_test contains end-to-end tests for komodo-event-bus-api.
+// Package e2e_test contains end-to-end tests for komodo-events-api.
 // Tests exercise the full request path: HTTP → handler → address provider (stub or real).
 //
 // Prerequisites:

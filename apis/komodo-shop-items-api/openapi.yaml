@@ -5,11 +5,17 @@ info:
   description: |
     Product and service catalog. Serves item data from S3.
 
-    - `GET /item/inventory` and `GET /item/{sku}` are public (no auth required)
-    - `POST /item/suggestion` requires a user JWT
+    All routes are public (no auth required).
+
+    **HTTP conventions:**
+    - POST → 201 Created / 400 Bad Request / 409 Conflict
+    - PUT → 200 OK / 404 Not Found
+    - DELETE → 204 No Content / 404 Not Found
+    - GET → 200 OK / 404 Not Found
+
 servers:
   - url: http://localhost:7041
-    description: Local dev
+    description: Local dev (public)
 
 tags:
   - name: Health
@@ -29,12 +35,26 @@ paths:
         "200":
           description: Service is healthy
 
-  /item/inventory:
+  /v1/item/inventory:
     get:
       tags: [Inventory]
       summary: Get inventory summary for all SKUs
       operationId: getInventory
+      x-visibility: public
       security: []
+      parameters:
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Sort field and direction (e.g. price_asc, name_desc)
+        - name: filters
+          in: query
+          required: false
+          schema:
+            type: string
+          description: URL-encoded filter string (e.g. category=electronics&stockCode=IS)
       responses:
         "200":
           description: Inventory list
@@ -43,11 +63,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/InventoryResponse"
 
-  /item/{sku}:
+  /v1/item/{sku}:
     get:
       tags: [Catalog]
       summary: Get a product or service by SKU
       operationId: getItemBySKU
+      x-visibility: public
       security: []
       parameters:
         - name: sku
@@ -67,13 +88,26 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /services/repair:
+  /v1/services/repair:
     get:
       tags: [Repair]
       summary: List all repair services
       operationId: getRepairServices
+      x-visibility: public
       security: []
       parameters:
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Sort field and direction (e.g. price_asc, name_desc)
+        - name: filters
+          in: query
+          required: false
+          schema:
+            type: string
+          description: URL-encoded filter string
         - name: page
           in: query
           required: false
@@ -99,11 +133,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/RepairServicesResponse"
 
-  /services/repair/{id}:
+  /v1/services/repair/{id}:
     get:
       tags: [Repair]
       summary: Get a single repair service by ID
       operationId: getRepairService
+      x-visibility: public
       security: []
       parameters:
         - name: id
@@ -121,31 +156,6 @@ paths:
                 $ref: "#/components/schemas/Service"
         "404":
           $ref: "#/components/responses/NotFound"
-
-  /item/suggestion:
-    post:
-      tags: [Catalog]
-      summary: Get personalized product suggestions
-      operationId: getSuggestions
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SuggestionRequest"
-      responses:
-        "200":
-          description: Suggested products
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuggestionResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
 
 components:
   securitySchemes:
@@ -752,41 +762,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/InventoryItem"
-        total:
-          type: integer
-
-    SuggestionRequest:
-      type: object
-      properties:
-        userId:
-          type: string
-        skus:
-          type: array
-          items:
-            type: string
-          description: SKUs of items currently in cart or recently viewed (context signal — not excluded from results)
-        exclude:
-          type: array
-          items:
-            type: string
-          description: SKUs to omit from suggestions (e.g. items already in cart that should not be repeated)
-        categories:
-          type: array
-          items:
-            type: string
-        limit:
-          type: integer
-          default: 10
-          maximum: 50
-
-    SuggestionResponse:
-      type: object
-      required: [suggestions, total]
-      properties:
-        suggestions:
-          type: array
-          items:
-            $ref: "#/components/schemas/Product"
         total:
           type: integer
 

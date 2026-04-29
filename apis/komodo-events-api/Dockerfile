@@ -9,10 +9,10 @@ ARG BUILD_TARGET
 
 WORKDIR /app
 
-COPY komodo-event-bus-api/go.mod komodo-event-bus-api/go.sum ./
+COPY komodo-events-api/go.mod komodo-events-api/go.sum ./
 RUN go mod download
 
-COPY komodo-event-bus-api ./
+COPY komodo-events-api ./
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/komodo ./cmd/${BUILD_TARGET}
 
 FROM gcr.io/distroless/base-debian12:${DISTROLESS_TAG}

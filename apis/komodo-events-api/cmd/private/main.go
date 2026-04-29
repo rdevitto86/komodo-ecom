@@ -13,10 +13,13 @@ import (
 	srv "github.com/rdevitto86/komodo-forge-sdk-go/http/server"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
-	"komodo-event-bus-api/internal/config"
-	"komodo-event-bus-api/internal/relay"
+	"komodo-events-api/internal/config"
+	"komodo-events-api/internal/dispatch"
+	"komodo-events-api/internal/relay"
+	"komodo-events-api/internal/repo"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 )
 
@@ -29,22 +32,33 @@ func init() {
 }
 
 func main() {
+	transport := os.Getenv(config.EVENT_TRANSPORT)
+
+	secretKeys := []string{
+		config.JWT_PUBLIC_KEY,
+		config.JWT_PRIVATE_KEY,
+		config.JWT_ISSUER,
+		config.JWT_AUDIENCE,
+		config.JWT_KID,
+		config.MAX_CONTENT_LENGTH,
+		config.RATE_LIMIT_RPS,
+		config.RATE_LIMIT_BURST,
+	}
+	if transport == "sns" {
+		secretKeys = append(secretKeys, config.SNS_TOPIC_ARN_PREFIX)
+	} else {
+		secretKeys = append(secretKeys,
+			config.DYNAMO_EVENTS_TABLE,
+			config.DYNAMO_SUBSCRIPTIONS_TABLE,
+		)
+	}
+
 	smCfg := awsSM.Config{
 		Region:   os.Getenv(config.AWS_REGION),
 		Endpoint: os.Getenv(config.AWS_ENDPOINT),
 		Prefix:   os.Getenv(config.AWS_SECRET_PREFIX),
 		Batch:    os.Getenv(config.AWS_SECRET_BATCH),
-		Keys: []string{
-			config.SNS_TOPIC_ARN_PREFIX,
-			config.JWT_PUBLIC_KEY,
-			config.JWT_PRIVATE_KEY,
-			config.JWT_ISSUER,
-			config.JWT_AUDIENCE,
-			config.JWT_KID,
-			config.MAX_CONTENT_LENGTH,
-			config.RATE_LIMIT_RPS,
-			config.RATE_LIMIT_BURST,
-		},
+		Keys:     secretKeys,
 	}
 	if err := awsSM.Bootstrap(smCfg); err != nil {
 		logger.Fatal("failed to initialize secrets manager", err)
@@ -73,7 +87,22 @@ func main() {
 		snsClient = sns.NewFromConfig(cfg)
 	}
 
-	pub := relay.NewPublisher(snsClient, mustConfig(config.SNS_TOPIC_ARN_PREFIX))
+	dynamoClient := dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+		if endpoint := os.Getenv(config.DYNAMODB_ENDPOINT); endpoint != "" {
+			o.BaseEndpoint = &endpoint
+		}
+	})
+
+	var (
+		dynRepo *repo.DynamoRepository
+		disp    *dispatch.Dispatcher
+	)
+	if transport != "sns" {
+		dynRepo = repo.NewDynamoRepository(dynamoClient, mustConfig(config.DYNAMO_EVENTS_TABLE))
+		disp = dispatch.NewDispatcher(dynamoClient, mustConfig(config.DYNAMO_EVENTS_TABLE), mustConfig(config.DYNAMO_SUBSCRIPTIONS_TABLE))
+	}
+
+	pub := relay.NewPublisher(snsClient, os.Getenv(config.SNS_TOPIC_ARN_PREFIX), dynRepo, disp, transport)
 
 	internalMW := []func(http.Handler) http.Handler{
 		mw.RequestIDMiddleware,
@@ -84,9 +113,18 @@ func main() {
 		mw.ScopeMiddleware,
 	}
 
+	minimalMW := []func(http.Handler) http.Handler{
+		mw.RequestIDMiddleware,
+		mw.TelemetryMiddleware,
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.HealthHandler)
 	mux.Handle("POST /events", mw.Chain(pub.PublishEvent, internalMW...))
+
+	if disp != nil {
+		mux.Handle("POST /internal/dispatch", mw.Chain(disp.HandleDispatch, minimalMW...))
+	}
 
 	server := &http.Server{
 		Handler:           mux,
@@ -101,9 +139,10 @@ func main() {
 }
 
 func mustConfig(key string) string {
-	if v := os.Getenv(key); v != "" { return v }
-	logger.Fatal("missing required config: " + key, nil)
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	logger.Fatal("missing required config: "+key, nil)
 	os.Exit(1)
 	return ""
 }
- 

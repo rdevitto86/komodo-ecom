@@ -5,8 +5,11 @@ info:
   description: |
     Aggregates domain event data from event-bus-api into real-time counters
     and social-proof stats (e.g. "X in carts", "500+ bought last month").
-    Public routes serve anonymous UI banners. Private routes receive events
-    from event-bus-api and expose admin/inter-service aggregates.
+    Public routes serve anonymous UI banners. Private routes expose admin/inter-service aggregates.
+
+    HTTP conventions: POST → 201 Created / 400 Bad Request / 409 Conflict;
+    PUT → 200 OK / 404 Not Found; DELETE → 204 No Content / 404 Not Found;
+    GET → 200 OK / 404 Not Found.
   version: 0.1.0
 
 servers:
@@ -20,8 +23,10 @@ tags:
     description: Liveness probes
   - name: Stats
     description: Public social-proof counters for UI display
+  - name: Events
+    description: Event ingestion (public, service-to-service)
   - name: Internal
-    description: Event ingestion and admin aggregates (service-to-service only)
+    description: Admin aggregates (private, service-to-service only)
 
 paths:
 
@@ -40,76 +45,12 @@ paths:
   # ---------------------------------------------------------------------------
   # Public stat reads — served to UI for banners, no auth required
   # ---------------------------------------------------------------------------
-  /stats/items/{itemId}/in-cart:
-    get:
-      tags: [Stats]
-      summary: How many active carts contain this item
-      operationId: getItemInCartCount
-      parameters:
-        - $ref: "#/components/parameters/ItemId"
-      responses:
-        "200":
-          description: Cart count for item
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ItemCartStat"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /stats/items/{itemId}/recently-bought:
-    get:
-      tags: [Stats]
-      summary: Purchase count for item over a rolling window
-      operationId: getItemRecentlyBought
-      parameters:
-        - $ref: "#/components/parameters/ItemId"
-        - name: period
-          in: query
-          description: Rolling window (default 30d)
-          schema:
-            type: string
-            enum: [7d, 30d, 90d]
-            default: 30d
-      responses:
-        "200":
-          description: Purchase count for item
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ItemPurchaseStat"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /stats/items/{itemId}/frequently-bought-with:
-    get:
-      tags: [Stats]
-      summary: Items frequently co-purchased with this item
-      operationId: getFrequentlyBoughtWith
-      parameters:
-        - $ref: "#/components/parameters/ItemId"
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 20
-            default: 5
-      responses:
-        "200":
-          description: Co-purchase pairings
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FrequentlyBoughtWithResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /stats/trending:
+  /v1/stats/items/trending:
     get:
       tags: [Stats]
       summary: Trending items across the catalog
       operationId: getTrending
+      x-visibility: public
       parameters:
         - name: limit
           in: query
@@ -132,14 +73,83 @@ paths:
               schema:
                 $ref: "#/components/schemas/TrendingResponse"
 
+  /v1/stats/items/{itemId}/in-cart:
+    get:
+      tags: [Stats]
+      summary: How many active carts contain this item
+      operationId: getItemInCartCount
+      x-visibility: public
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Cart count for item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemCartStat"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/stats/items/{itemId}/recently-bought:
+    get:
+      tags: [Stats]
+      summary: Purchase count for item over a rolling window
+      operationId: getItemRecentlyBought
+      x-visibility: public
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+        - name: period
+          in: query
+          description: Rolling window (default 30d)
+          schema:
+            type: string
+            enum: [7d, 30d, 90d]
+            default: 30d
+      responses:
+        "200":
+          description: Purchase count for item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemPurchaseStat"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/stats/items/{itemId}/frequently-bought-with:
+    get:
+      tags: [Stats]
+      summary: Items frequently co-purchased with this item
+      operationId: getFrequentlyBoughtWith
+      x-visibility: public
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+      responses:
+        "200":
+          description: Co-purchase pairings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrequentlyBoughtWithResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ---------------------------------------------------------------------------
-  # Private / internal — service-to-service only
+  # Public event ingestion — receives events from event-bus-api
   # ---------------------------------------------------------------------------
-  /internal/events:
+  /v1/events:
     post:
-      tags: [Internal]
+      tags: [Events]
       summary: Ingest a domain event from event-bus-api
       operationId: ingestEvent
+      x-visibility: public
       security:
         - BearerAuth: []
       requestBody:
@@ -149,20 +159,46 @@ paths:
             schema:
               $ref: "#/components/schemas/IngestEventRequest"
       responses:
-        "204":
+        "201":
           description: Event accepted
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /internal/stats/dashboard:
+  # ---------------------------------------------------------------------------
+  # Private / internal — service-to-service only (port 7112)
+  # ---------------------------------------------------------------------------
+  /v1/stats/dashboard:
     get:
       tags: [Internal]
       summary: Aggregate stats dashboard for admin consumers
       operationId: getStatsDashboard
+      x-visibility: private
       security:
         - BearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          description: Start of reporting window (ISO 8601 date)
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: End of reporting window (ISO 8601 date)
+          schema:
+            type: string
+            format: date
+        - name: granularity
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+        - name: category
+          in: query
+          schema:
+            type: string
       responses:
         "200":
           description: Aggregated platform stats
@@ -172,27 +208,6 @@ paths:
                 $ref: "#/components/schemas/DashboardStats"
         "401":
           $ref: "#/components/responses/Unauthorized"
-
-  /internal/stats/items/{itemId}:
-    get:
-      tags: [Internal]
-      summary: Full stat record for a single item (internal use)
-      operationId: getItemStatsFull
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/ItemId"
-      responses:
-        "200":
-          description: Full item stats
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ItemStatsFull"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
 
 # ---------------------------------------------------------------------------
 # Components
@@ -321,28 +336,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TrendingItem"
-
-    ItemStatsFull:
-      type: object
-      properties:
-        item_id:
-          type: string
-        in_cart_count:
-          type: integer
-        purchases_7d:
-          type: integer
-        purchases_30d:
-          type: integer
-        purchases_90d:
-          type: integer
-        view_count:
-          type: integer
-        trend_score:
-          type: number
-          format: float
-        last_updated:
-          type: string
-          format: date-time
 
     ProblemDetail:
       type: object

@@ -2,12 +2,23 @@ openapi: "3.1.0"
 
 info:
   title: Komodo User API
-  version: "0.1.0"
+  version: "1.0.0"
   description: |
-    User profile, address, payment method, and preference management.
+    User profile, address, payment method, preference, and wishlist management.
 
-    **Auth:** All `/me/*` routes require a user-scoped JWT (`Authorization: Bearer <token>`).
-    Internal `/users/{id}/*` routes require a service-scoped JWT (`svc:` prefix claim).
+    **Two servers:**
+    - Public (7051): customer-facing profile and wishlist endpoints; require user JWT
+    - Internal (7052): service-to-service user lookup endpoints; require service JWT
+
+    **Auth:** All `/v1/profile`, `/v1/addresses`, `/v1/payments`, `/v1/preferences`,
+    and `/v1/wishlist` routes require a user-scoped JWT (`Authorization: Bearer <token>`).
+    Internal `/v1/users/{id}/*` routes require a service-scoped JWT (`svc:` prefix claim).
+
+    **HTTP conventions:**
+    - POST → 201 Created / 400 Bad Request / 409 Conflict
+    - PUT → 200 OK / 404 Not Found
+    - DELETE → 204 No Content / 404 Not Found
+    - GET → 200 OK / 404 Not Found
 
 servers:
   - url: http://localhost:7051
@@ -41,11 +52,12 @@ paths:
 
   # ── Profile ──────────────────────────────────────────────────────────────
 
-  /me/profile:
+  /v1/profile:
     get:
       tags: [Profile]
       summary: Get authenticated user's profile
       operationId: getProfile
+      x-visibility: public
       responses:
         "200":
           description: User profile
@@ -62,6 +74,7 @@ paths:
       tags: [Profile]
       summary: Create user record (called on registration)
       operationId: createUser
+      x-visibility: public
       requestBody:
         required: true
         content:
@@ -86,6 +99,7 @@ paths:
       tags: [Profile]
       summary: Update authenticated user's profile
       operationId: updateProfile
+      x-visibility: public
       requestBody:
         required: true
         content:
@@ -110,6 +124,7 @@ paths:
       tags: [Profile]
       summary: Delete authenticated user's account
       operationId: deleteProfile
+      x-visibility: public
       responses:
         "204":
           description: Account deleted
@@ -120,11 +135,12 @@ paths:
 
   # ── Addresses ────────────────────────────────────────────────────────────
 
-  /me/addresses:
+  /v1/addresses:
     get:
       tags: [Addresses]
       summary: List all addresses for the authenticated user
       operationId: getAddresses
+      x-visibility: public
       responses:
         "200":
           description: Address list
@@ -141,6 +157,7 @@ paths:
       tags: [Addresses]
       summary: Add a new address
       operationId: addAddress
+      x-visibility: public
       requestBody:
         required: true
         content:
@@ -159,7 +176,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /me/addresses/{id}:
+  /v1/addresses/{id}:
     parameters:
       - $ref: "#/components/parameters/AddressID"
 
@@ -167,6 +184,7 @@ paths:
       tags: [Addresses]
       summary: Update an address
       operationId: updateAddress
+      x-visibility: public
       requestBody:
         required: true
         content:
@@ -191,6 +209,7 @@ paths:
       tags: [Addresses]
       summary: Delete an address
       operationId: deleteAddress
+      x-visibility: public
       responses:
         "204":
           description: Address deleted
@@ -201,11 +220,12 @@ paths:
 
   # ── Payments ─────────────────────────────────────────────────────────────
 
-  /me/payments:
+  /v1/payments:
     get:
       tags: [Payments]
       summary: List saved payment methods
       operationId: getPayments
+      x-visibility: public
       responses:
         "200":
           description: Payment method list
@@ -222,6 +242,7 @@ paths:
       tags: [Payments]
       summary: Add or update a payment method
       operationId: upsertPayment
+      x-visibility: public
       requestBody:
         required: true
         content:
@@ -240,7 +261,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /me/payments/{id}:
+  /v1/payments/{id}:
     parameters:
       - $ref: "#/components/parameters/PaymentID"
 
@@ -248,6 +269,7 @@ paths:
       tags: [Payments]
       summary: Remove a payment method
       operationId: deletePayment
+      x-visibility: public
       responses:
         "204":
           description: Payment method removed
@@ -258,11 +280,12 @@ paths:
 
   # ── Preferences ──────────────────────────────────────────────────────────
 
-  /me/preferences:
+  /v1/preferences:
     get:
       tags: [Preferences]
       summary: Get user preferences
       operationId: getPreferences
+      x-visibility: public
       responses:
         "200":
           description: User preferences
@@ -279,6 +302,7 @@ paths:
       tags: [Preferences]
       summary: Update user preferences
       operationId: updatePreferences
+      x-visibility: public
       requestBody:
         required: true
         content:
@@ -301,6 +325,7 @@ paths:
       tags: [Preferences]
       summary: Delete user preferences
       operationId: deletePreferences
+      x-visibility: public
       responses:
         "204":
           description: Preferences deleted
@@ -309,11 +334,12 @@ paths:
 
   # ── Wishlist ─────────────────────────────────────────────────────────────
 
-  /me/wishlist:
+  /v1/wishlist:
     get:
       tags: [Wishlist]
       summary: Get the authenticated user's wishlist
       operationId: getWishlist
+      x-visibility: public
       responses:
         "200":
           description: Wishlist contents
@@ -324,11 +350,12 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /me/wishlist/items:
+  /v1/wishlist/items:
     post:
       tags: [Wishlist]
       summary: Add an item to the wishlist
       operationId: addWishlistItem
+      x-visibility: public
       requestBody:
         required: true
         content:
@@ -349,13 +376,14 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
-  /me/wishlist/items/{itemId}:
+  /v1/wishlist/items/{itemId}:
     parameters:
       - $ref: "#/components/parameters/WishlistItemID"
     delete:
       tags: [Wishlist]
       summary: Remove an item from the wishlist
       operationId: removeWishlistItem
+      x-visibility: public
       responses:
         "204":
           description: Item removed
@@ -364,11 +392,12 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /me/wishlist/availability:
+  /v1/wishlist/availability:
     get:
       tags: [Wishlist]
       summary: Check stock availability for all items in the wishlist
       operationId: getWishlistAvailability
+      x-visibility: public
       responses:
         "200":
           description: Per-item availability status
@@ -379,11 +408,12 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /me/wishlist/move-to-cart:
+  /v1/wishlist/move-to-cart:
     post:
       tags: [Wishlist]
       summary: Move one or more wishlist items to cart
       operationId: moveWishlistToCart
+      x-visibility: public
       requestBody:
         required: true
         content:
@@ -404,13 +434,14 @@ paths:
 
   # ── Internal ─────────────────────────────────────────────────────────────
 
-  /users/{id}:
+  /v1/users/{id}:
     parameters:
       - $ref: "#/components/parameters/UserID"
     get:
       tags: [Internal]
       summary: Get profile by user ID (service-to-service)
       operationId: internalGetUser
+      x-visibility: private
       security:
         - ServiceJWT: []
       responses:
@@ -427,13 +458,14 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /users/{id}/addresses:
+  /v1/users/{id}/addresses:
     parameters:
       - $ref: "#/components/parameters/UserID"
     get:
       tags: [Internal]
       summary: Get addresses for a user (service-to-service)
       operationId: internalGetUserAddresses
+      x-visibility: private
       security:
         - ServiceJWT: []
       responses:
@@ -450,13 +482,14 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
-  /users/{id}/preferences:
+  /v1/users/{id}/preferences:
     parameters:
       - $ref: "#/components/parameters/UserID"
     get:
       tags: [Internal]
       summary: Get preferences for a user (service-to-service)
       operationId: internalGetUserPreferences
+      x-visibility: private
       security:
         - ServiceJWT: []
       responses:
@@ -471,13 +504,14 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
-  /users/{id}/payments:
+  /v1/users/{id}/payments:
     parameters:
       - $ref: "#/components/parameters/UserID"
     get:
       tags: [Internal]
       summary: Get payment methods for a user (service-to-service)
       operationId: internalGetUserPayments
+      x-visibility: private
       security:
         - ServiceJWT: []
       responses:

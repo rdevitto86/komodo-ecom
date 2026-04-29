@@ -104,7 +104,7 @@ func main() {
 	// are implemented under internal/adapters/.
 	// nil adapters: cart, inventory, and user service adapters are not yet wired.
 	// TODO: wire real adapters once HTTP clients land under internal/adapters/.
-	orderSvc := service.NewOrderService(nil, nil, nil)
+	orderSvc := service.NewOrderService(nil, nil, nil, nil)
 
 	writeMW := []func(http.Handler) http.Handler{
 		mw.RequestIDMiddleware,
@@ -173,7 +173,6 @@ func main() {
 	mux.Handle("GET /orders/{orderId}", mw.Chain(handlers.GetOrderUnified(orderSvc), guestReadMW...))
 
 	// Authenticated order routes — require JWT.
-	mux.Handle("POST /me/orders", mw.Chain(handlers.PlaceOrder(orderSvc), writeMW...))
 	mux.Handle("GET /me/orders", mw.Chain(handlers.ListOrders(orderSvc), readMW...))
 	mux.Handle("GET /me/orders/{orderId}", mw.Chain(handlers.GetOrder(orderSvc), readMW...))
 	mux.Handle("POST /me/orders/{orderId}/cancel", mw.Chain(handlers.CancelOrder(orderSvc), writeMW...))

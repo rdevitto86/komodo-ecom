@@ -3,27 +3,29 @@ info:
   title: komodo-ssr-engine-svelte
   version: "0.1.0"
   description: |
-    SvelteKit-based SSR engine with API endpoints for services, orders, marketing, products, and content management.
-    Uses Bun runtime.
+    SvelteKit-based SSR engine. Pre-renders and caches component trees for performance-critical
+    and SEO-sensitive pages, delivering HTML fragments to the ui shell. Private-only — all routes
+    are service-to-service. Uses Bun runtime. Spec-only: no routes implemented yet.
+
+    HTTP conventions: POST → 201 Created / 400 Bad Request / 409 Conflict;
+    PUT → 200 OK / 404 Not Found; DELETE → 204 No Content / 404 Not Found;
+    GET → 200 OK / 404 Not Found.
+
 servers:
   - url: http://localhost:7003
-    description: Local dev
+    description: Private / internal (local dev)
 
 tags:
   - name: Health
-  - name: Services
-  - name: Orders
-  - name: Marketing
-  - name: Products
-  - name: Landing
+  - name: Render
   - name: Admin
 
 paths:
 
-  /api/health:
+  /health:
     get:
       tags: [Health]
-      summary: Liveness check with S3 connectivity
+      summary: Liveness check
       operationId: healthCheck
       security: []
       responses:
@@ -34,151 +36,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
         "503":
-          description: Service degraded (S3 unavailable)
+          description: Service degraded
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
 
-  /api/v1/services/{id}:
-    get:
-      tags: [Services]
-      summary: Get service details
-      operationId: getService
-      security: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+  /v1/render:
+    post:
+      tags: [Render]
+      summary: Render a SvelteKit component tree to an HTML fragment
+      operationId: renderComponent
+      x-visibility: private
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenderRequest"
       responses:
         "200":
-          description: Service details
+          description: Rendered HTML fragment
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Service"
+                $ref: "#/components/schemas/RenderResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
-  /api/v1/services/scheduling/{id}:
-    get:
-      tags: [Services]
-      summary: Get service scheduling details
-      operationId: getServiceScheduling
-      security: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Service scheduling details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ServiceScheduling"
-
-  /api/v1/orders/{id}:
-    get:
-      tags: [Orders]
-      summary: Get order details
-      operationId: getOrder
-      security: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Order details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Order"
-
-  /api/v1/marketing/user/{id}:
-    get:
-      tags: [Marketing]
-      summary: Get user marketing content
-      operationId: getUserMarketing
-      security: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: User marketing content
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UserMarketing"
-
-  /api/v1/marketing/content/{id}:
-    get:
-      tags: [Marketing]
-      summary: Get marketing content by ID
-      operationId: getMarketingContent
-      security: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Marketing content
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MarketingContent"
-
-  /api/v1/products/{id}:
-    get:
-      tags: [Products]
-      summary: Get product details
-      operationId: getProduct
-      security: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Product details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Product"
-
-  /api/v1/landing:
-    get:
-      tags: [Landing]
-      summary: Get landing page content
-      operationId: getLanding
-      security: []
-      responses:
-        "200":
-          description: Landing page content
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LandingContent"
-
-  /api/v1/admin/manage/content/invalidate:
+  /v1/admin/content/invalidate:
     post:
       tags: [Admin]
-      summary: Invalidate cached content
+      summary: Invalidate cached rendered content
       operationId: invalidateContent
+      x-visibility: private
       security:
         - bearerAuth: []
       requestBody:
@@ -190,12 +85,17 @@ paths:
       responses:
         "200":
           description: Content invalidated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
-  /api/v1/admin/manage/content/upsert:
+  /v1/admin/content/upsert:
     post:
       tags: [Admin]
-      summary: Upsert content
+      summary: Upsert content in the SSR cache
       operationId: upsertContent
+      x-visibility: private
       security:
         - bearerAuth: []
       requestBody:
@@ -211,6 +111,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Content"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
 components:
   securitySchemes:
@@ -230,81 +134,38 @@ components:
         timestamp:
           type: string
           format: date-time
-        s3:
-          type: string
-          enum: [ok, error, unknown]
 
-    Service:
+    RenderRequest:
       type: object
+      required: [component, props]
       properties:
-        id:
+        component:
           type: string
-        name:
+          description: Component identifier (e.g. "ProductDetail", "LandingHero")
+        props:
+          type: object
+          additionalProperties: true
+          description: Props to pass to the component at render time
+        cache_key:
           type: string
-        description:
-          type: string
+          description: Optional explicit cache key; derived from component + props if omitted
+        ttl_seconds:
+          type: integer
+          description: Override cache TTL for this render; server default applied if omitted
 
-    ServiceScheduling:
+    RenderResponse:
       type: object
+      required: [html, cache_hit]
       properties:
-        id:
+        html:
           type: string
-        available_slots:
-          type: array
-          items:
-            type: string
-
-    Order:
-      type: object
-      properties:
-        id:
+          description: Rendered HTML fragment
+        cache_hit:
+          type: boolean
+          description: True if the response was served from cache
+        rendered_at:
           type: string
-        status:
-          type: string
-        total:
-          type: number
-
-    UserMarketing:
-      type: object
-      properties:
-        user_id:
-          type: string
-        campaigns:
-          type: array
-          items:
-            type: string
-
-    MarketingContent:
-      type: object
-      properties:
-        id:
-          type: string
-        title:
-          type: string
-        content:
-          type: string
-
-    Product:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        price:
-          type: number
-
-    LandingContent:
-      type: object
-      properties:
-        hero_title:
-          type: string
-        hero_subtitle:
-          type: string
-        featured_products:
-          type: array
-          items:
-            type: string
+          format: date-time
 
     InvalidateRequest:
       type: object
@@ -314,6 +175,7 @@ components:
           type: array
           items:
             type: string
+          description: Cache keys to invalidate
 
     UpsertContentRequest:
       type: object

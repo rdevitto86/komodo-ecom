@@ -71,7 +71,7 @@ func init() {
 func main() {
 	// Adapters are nil until cart-api and shop-inventory-api HTTP clients land.
 	// Internal routes only read orders — no adapter dependency.
-	orderSvc := service.NewOrderService(nil, nil, nil)
+	orderSvc := service.NewOrderService(nil, nil, nil, nil)
 
 	// Private middleware stack: no CORS, CSRF, rate-limiting, or sanitization.
 	// Auth enforces JWT validity; RequireServiceScope enforces service-to-service scope claims.

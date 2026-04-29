@@ -1,3 +1,0 @@
-# High-Level Design
-
-TODO

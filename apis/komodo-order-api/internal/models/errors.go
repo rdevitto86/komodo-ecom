@@ -15,6 +15,18 @@ var ErrNotFound = errors.New("not found")
 // Handlers map this to a 403 response via sendOrderError.
 var ErrForbidden = errors.New("forbidden")
 
+// ErrInvalidTransition is returned when a status update is rejected because the
+// stored status does not match the expected precondition (concurrent write guard).
+var ErrInvalidTransition = errors.New("invalid status transition")
+
+// ErrAlreadyCancelled is returned when cancellation is attempted on an order
+// that is already in the cancelled state.
+var ErrAlreadyCancelled = errors.New("already cancelled")
+
+// ErrNotCancellable is returned when cancellation is attempted on an order
+// whose current status does not permit it (e.g. shipped, delivered).
+var ErrNotCancellable = errors.New("not cancellable")
+
 // 40xxx — komodo-order-api orders (see forge-sdk ranges.go)
 // 41xxx — komodo-order-api line items
 type OrderAPIErrors struct {

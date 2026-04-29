@@ -6,26 +6,44 @@ import (
 	"fmt"
 	"os"
 
-	"komodo-event-bus-api/internal/config"
+	"komodo-events-api/internal/config"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	snsTypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
 )
 
-// Publisher routes validated event envelopes to SNS FIFO topics.
-// One instance is shared for the lifetime of the process.
-type Publisher struct {
-	sns            *sns.Client
-	topicARNPrefix string // e.g. "arn:aws:sns:us-east-1:123456789012:komodo-"
-	env            string // e.g. "prod", "staging", "dev", "local"
+// Dispatcher is the minimal interface the Publisher requires from the dispatch package.
+// Declared here to break the import cycle: relay ← dispatch ← relay.
+type Dispatcher interface {
+	Dispatch(ctx context.Context, env EventEnvelope) error
 }
 
-func NewPublisher(snsClient *sns.Client, topicARNPrefix string) *Publisher {
+// DynamoRepo is the minimal interface the Publisher requires from the repo package.
+type DynamoRepo interface {
+	SaveEvent(ctx context.Context, env EventEnvelope) error
+}
+
+// Publisher routes validated event envelopes to the active transport.
+// transport="dynamo" (default) persists to DynamoDB and HTTP-dispatches to subscribers.
+// transport="sns" publishes to SNS FIFO topics (V2 path, not yet deployed).
+type Publisher struct {
+	sns            *sns.Client
+	topicARNPrefix string
+	env            string
+	repo           DynamoRepo
+	dispatcher     Dispatcher
+	transport      string
+}
+
+func NewPublisher(snsClient *sns.Client, topicARNPrefix string, rep DynamoRepo, disp Dispatcher, transport string) *Publisher {
 	return &Publisher{
 		sns:            snsClient,
 		topicARNPrefix: topicARNPrefix,
 		env:            os.Getenv(config.ENV),
+		repo:           rep,
+		dispatcher:     disp,
+		transport:      transport,
 	}
 }
 

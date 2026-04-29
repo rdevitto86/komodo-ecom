@@ -2,14 +2,32 @@ openapi: "3.1.0"
 info:
   title: komodo-cart-api
   version: "1.0.0"
-  description: Shopping cart service — guest and authenticated cart management with checkout stock hold coordination.
+  description: |
+    Shopping cart service — guest and authenticated cart management with checkout stock hold coordination.
+
+    Guest carts are identified by a `X-Session-ID` header (UUID set by the client on first cart interaction,
+    stored in a cookie). Authenticated carts are identified by the JWT subject. The merge route transitions
+    a guest cart into an authenticated one after login.
+
+    **HTTP conventions:**
+    - POST → 201 Created / 400 Bad Request / 409 Conflict
+    - PUT → 200 OK / 404 Not Found
+    - DELETE → 204 No Content / 404 Not Found
+    - GET → 200 OK / 404 Not Found
+
 servers:
   - url: http://localhost:7043
-    description: Local dev
+    description: Local dev (public)
+
+tags:
+  - name: Health
+  - name: Cart
+  - name: Saved
 
 paths:
   /health:
     get:
+      tags: [Health]
       summary: Liveness check
       operationId: getHealth
       security: []
@@ -17,12 +35,17 @@ paths:
         "200":
           description: OK
 
-  /me/cart:
+  /v1/cart:
     get:
-      summary: Get authenticated user's cart
-      operationId: getMyCart
+      tags: [Cart]
+      summary: Get cart — authenticated (JWT) or guest (X-Session-ID)
+      operationId: getCart
+      x-visibility: public
       security:
         - bearerAuth: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
       responses:
         "200":
           description: Cart retrieved
@@ -32,21 +55,32 @@ paths:
                 $ref: "#/components/schemas/Cart"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
-      summary: Clear authenticated user's cart
-      operationId: clearMyCart
+      tags: [Cart]
+      summary: Clear cart — authenticated (JWT) or guest (X-Session-ID)
+      operationId: clearCart
+      x-visibility: public
       security:
         - bearerAuth: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
       responses:
         "204":
           description: Cart cleared
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
-  /me/cart/merge:
+  /v1/cart/merge:
     post:
+      tags: [Cart]
       summary: Merge a guest cart into the authenticated cart
       operationId: mergeGuestCart
+      x-visibility: public
       description: |
         Merges items from a guest cart (Redis) into the authenticated user's cart (DynamoDB).
         Quantities are additive for duplicate items; authenticated cart wins on price/name conflicts.
@@ -78,12 +112,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
 
-  /me/cart/items:
+  /v1/cart/items:
     post:
-      summary: Add item to authenticated cart
-      operationId: addMyCartItem
+      tags: [Cart]
+      summary: Add item to cart — authenticated (JWT) or guest (X-Session-ID)
+      operationId: addCartItem
+      x-visibility: public
       security:
         - bearerAuth: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
       requestBody:
         required: true
         content:
@@ -102,14 +141,18 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /me/cart/items/{itemId}:
+  /v1/cart/items/{itemId}:
     put:
-      summary: Update item quantity in authenticated cart
-      operationId: updateMyCartItem
+      tags: [Cart]
+      summary: Update item quantity in cart — authenticated (JWT) or guest (X-Session-ID)
+      operationId: updateCartItem
+      x-visibility: public
       security:
         - bearerAuth: []
+        - {}
       parameters:
         - $ref: "#/components/parameters/ItemId"
+        - $ref: "#/components/parameters/SessionId"
       requestBody:
         required: true
         content:
@@ -130,12 +173,16 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
-      summary: Remove item from authenticated cart
-      operationId: deleteMyCartItem
+      tags: [Cart]
+      summary: Remove item from cart — authenticated (JWT) or guest (X-Session-ID)
+      operationId: deleteCartItem
+      x-visibility: public
       security:
         - bearerAuth: []
+        - {}
       parameters:
         - $ref: "#/components/parameters/ItemId"
+        - $ref: "#/components/parameters/SessionId"
       responses:
         "204":
           description: Item removed
@@ -144,10 +191,12 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /me/cart/checkout:
+  /v1/cart/checkout:
     post:
+      tags: [Cart]
       summary: Initiate checkout — places stock holds, returns checkout token
       operationId: initiateCheckout
+      x-visibility: public
       security:
         - bearerAuth: []
       responses:
@@ -168,124 +217,93 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
 
-  /cart:
-    post:
-      summary: Create a guest cart
-      operationId: createGuestCart
-      security: []
-      responses:
-        "201":
-          description: Guest cart created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Cart"
-
-  /cart/{cartId}:
+  /v1/cart/saved:
     get:
-      summary: Get guest cart
-      operationId: getGuestCart
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/CartId"
-        - $ref: "#/components/parameters/SessionId"
+      tags: [Saved]
+      summary: Get saved-for-later items for the authenticated user
+      operationId: getSavedItems
+      x-visibility: public
+      security:
+        - bearerAuth: []
       responses:
         "200":
-          description: Cart retrieved
+          description: Saved items list
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Cart"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-    delete:
-      summary: Clear guest cart
-      operationId: clearGuestCart
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/CartId"
-        - $ref: "#/components/parameters/SessionId"
-      responses:
-        "204":
-          description: Cart cleared
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /cart/{cartId}/items:
+                $ref: "#/components/schemas/SavedItemsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
-      summary: Add item to guest cart
-      operationId: addGuestCartItem
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/CartId"
-        - $ref: "#/components/parameters/SessionId"
+      tags: [Saved]
+      summary: Save an item for later (move from cart or add directly)
+      operationId: saveItem
+      x-visibility: public
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AddItemRequest"
+              $ref: "#/components/schemas/SaveItemRequest"
       responses:
         "201":
-          description: Item added
+          description: Item saved
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Cart"
+                $ref: "#/components/schemas/SavedItem"
         "400":
           $ref: "#/components/responses/BadRequest"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
-  /cart/{cartId}/items/{itemId}:
-    put:
-      summary: Update item quantity in guest cart
-      operationId: updateGuestCartItem
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/CartId"
-        - $ref: "#/components/parameters/SessionId"
-        - $ref: "#/components/parameters/ItemId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateItemRequest"
-      responses:
-        "200":
-          description: Item updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Cart"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
+  /v1/cart/saved/{itemId}:
     delete:
-      summary: Remove item from guest cart
-      operationId: deleteGuestCartItem
-      security: []
+      tags: [Saved]
+      summary: Remove a saved-for-later item
+      operationId: deleteSavedItem
+      x-visibility: public
+      security:
+        - bearerAuth: []
       parameters:
-        - $ref: "#/components/parameters/CartId"
-        - $ref: "#/components/parameters/SessionId"
         - $ref: "#/components/parameters/ItemId"
       responses:
         "204":
-          description: Item removed
-        "403":
-          $ref: "#/components/responses/Forbidden"
+          description: Saved item removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /v1/cart/saved/{itemId}/move:
+    post:
+      tags: [Saved]
+      summary: Move a saved-for-later item back into the cart
+      operationId: moveSavedItemToCart
+      x-visibility: public
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Item moved to cart; returns updated cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Item is out of stock and cannot be moved back to cart
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
 
 components:
   securitySchemes:
@@ -295,13 +313,6 @@ components:
       bearerFormat: JWT
 
   parameters:
-    CartId:
-      name: cartId
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
     ItemId:
       name: itemId
       in: path
@@ -311,11 +322,11 @@ components:
     SessionId:
       name: X-Session-ID
       in: header
-      required: true
+      required: false
       schema:
         type: string
         format: uuid
-      description: Guest session token (set by client on cart creation, stored in cookie)
+      description: Guest session token (set by client on cart creation, stored in cookie). Required for unauthenticated requests.
 
   schemas:
     Cart:
@@ -363,6 +374,37 @@ components:
         image_url:
           type: string
 
+    SavedItem:
+      type: object
+      required: [item_id, sku, name, unit_price_cents, saved_at]
+      properties:
+        item_id:
+          type: string
+          description: Product ID from shop-items-api
+        sku:
+          type: string
+          description: Variant SKU
+        name:
+          type: string
+          description: Product name snapshot at save-time
+        unit_price_cents:
+          type: integer
+          description: Price snapshot at save-time
+        image_url:
+          type: string
+        saved_at:
+          type: string
+          format: date-time
+
+    SavedItemsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SavedItem"
+
     MergeCartRequest:
       type: object
       required: [guest_cart_id]
@@ -394,6 +436,15 @@ components:
           type: integer
           minimum: 0
           description: Set to 0 to remove the item
+
+    SaveItemRequest:
+      type: object
+      required: [item_id, sku]
+      properties:
+        item_id:
+          type: string
+        sku:
+          type: string
 
     CheckoutResponse:
       type: object

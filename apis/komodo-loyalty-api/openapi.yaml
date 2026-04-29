@@ -1,16 +1,25 @@
 openapi: "3.1.0"
 info:
   title: komodo-loyalty-api
-  version: "0.1.0"
+  version: "1.0.0"
   description: |
     Loyalty program management and product reviews service.
     Absorbed komodo-reviews-api (both services share the Loyalty & Social domain).
+    All routes are public and require a user JWT.
+
+    HTTP conventions:
+    - POST → 201 Created / 400 Bad Request / 409 Conflict
+    - PUT → 200 OK / 404 Not Found
+    - DELETE → 204 No Content / 404 Not Found
+    - GET → 200 OK / 404 Not Found
+
 servers:
   - url: http://localhost:7091
     description: Local dev
 
 tags:
   - name: Health
+  - name: Loyalty
   - name: Reviews
 
 paths:
@@ -24,12 +33,61 @@ paths:
         "200":
           description: Service is healthy
 
-  /me/reviews:
+  /v1/loyalty:
+    get:
+      tags: [Loyalty]
+      summary: Get current user's loyalty points balance and tier status
+      operationId: getLoyalty
+      x-visibility: public
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Loyalty account summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoyaltyAccount"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/loyalty/redeem:
+    post:
+      tags: [Loyalty]
+      summary: Redeem loyalty points against a cart or order
+      operationId: redeemPoints
+      x-visibility: public
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedeemRequest"
+      responses:
+        "201":
+          description: Redemption applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RedeemResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Insufficient points or redemption already applied
+
+  /v1/reviews:
     post:
       tags: [Reviews]
       summary: Submit a review
       description: Submit a product review. Requires a verified purchase for the item.
       operationId: submitReview
+      x-visibility: public
       security:
         - bearerAuth: []
       requestBody:
@@ -52,11 +110,12 @@ paths:
         "409":
           description: Already reviewed this item
 
-  /me/reviews/{reviewId}:
+  /v1/reviews/{reviewId}:
     put:
       tags: [Reviews]
       summary: Update own review
       operationId: updateReview
+      x-visibility: public
       security:
         - bearerAuth: []
       parameters:
@@ -86,6 +145,7 @@ paths:
       tags: [Reviews]
       summary: Delete own review
       operationId: deleteReview
+      x-visibility: public
       security:
         - bearerAuth: []
       parameters:
@@ -102,12 +162,13 @@ paths:
         "404":
           description: Review not found
 
-  /items/{itemId}/reviews:
+  /v1/items/{itemId}/reviews:
     get:
       tags: [Reviews]
       summary: List reviews for an item
       description: Returns paginated reviews for a product. No authentication required.
       operationId: listItemReviews
+      x-visibility: public
       security: []
       parameters:
         - name: itemId
@@ -144,6 +205,50 @@ components:
       bearerFormat: JWT
 
   schemas:
+    LoyaltyAccount:
+      type: object
+      required: [user_id, points_balance, tier, created_at]
+      properties:
+        user_id:
+          type: string
+        points_balance:
+          type: integer
+          minimum: 0
+        tier:
+          type: string
+          enum: [bronze, silver, gold, platinum]
+        points_to_next_tier:
+          type: integer
+          description: Points needed to reach the next tier. Null if already at highest tier.
+        created_at:
+          type: string
+          format: date-time
+
+    RedeemRequest:
+      type: object
+      required: [points, order_id]
+      properties:
+        points:
+          type: integer
+          minimum: 1
+          description: Number of points to redeem
+        order_id:
+          type: string
+          format: uuid
+
+    RedeemResult:
+      type: object
+      required: [redeemed_points, discount_cents, remaining_balance]
+      properties:
+        redeemed_points:
+          type: integer
+        discount_cents:
+          type: integer
+          description: Dollar value of the redeemed points in cents
+        remaining_balance:
+          type: integer
+          description: Points balance after redemption
+
     Review:
       type: object
       properties:
@@ -213,3 +318,40 @@ components:
           type: integer
         limit:
           type: integer
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

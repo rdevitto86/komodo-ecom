@@ -5,7 +5,7 @@ go 1.26.2
 require (
 	github.com/anthropics/anthropic-sdk-go v1.26.0
 	github.com/google/uuid v1.6.0
-	github.com/rdevitto86/komodo-forge-sdk-go v0.6.0
+	github.com/rdevitto86/komodo-forge-sdk-go v0.9.0
 )
 
 require (

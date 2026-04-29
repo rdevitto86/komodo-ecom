@@ -329,17 +329,56 @@ func DeletePayment(ctx context.Context, userID, paymentID string) error {
 	return nil
 }
 
+// prefsRecord is the internal DynamoDB representation of a preferences item.
+// It carries PK/SK so that WriteItemFrom correctly populates the table keys.
+// Preferences is a singleton per user (SK="PREFS"), so there is no ID field.
+type prefsRecord struct {
+	PK string `dynamodbav:"PK"`
+	SK string `dynamodbav:"SK"`
+	models.Preferences
+}
+
+// prefsPK returns the partition-key value for a user's preferences item.
+func prefsPK(userID string) string { return "USER#" + userID }
+
 // GetUserPreferences retrieves preference settings for a user.
-// TODO: implement once schema is finalized.
 func GetUserPreferences(ctx context.Context, userID string) (*models.Preferences, error) {
-	key, err := dynamodb.BuildKey("PK", "USER#"+userID, "SK", "PREFS")
+	key, err := dynamodb.BuildKey("PK", prefsPK(userID), "SK", "PREFS")
 	if err != nil {
 		return nil, fmt.Errorf("repo.GetUserPreferences: build key: %w", err)
 	}
 
-	var prefs models.Preferences
-	if err := dynamodb.GetItemAs(ctx, table, key, false, nil, &prefs); err != nil {
+	var record prefsRecord
+	if err := dynamodb.GetItemAs(ctx, table, key, false, nil, &record); err != nil {
 		return nil, fmt.Errorf("repo.GetUserPreferences: %w", err)
 	}
+	prefs := record.Preferences
 	return &prefs, nil
+}
+
+// UpdateUserPreferences replaces the preferences item in full (PutItem semantics).
+// Preferences is a singleton — the client always sends the complete object.
+// See data-model.md for the rationale behind full-replace over UpdateItem.
+func UpdateUserPreferences(ctx context.Context, userID string, prefs *models.Preferences) error {
+	record := prefsRecord{
+		PK:          prefsPK(userID),
+		SK:          "PREFS",
+		Preferences: *prefs,
+	}
+	if err := dynamodb.WriteItemFrom(ctx, table, record, false, nil, nil); err != nil {
+		return fmt.Errorf("repo.UpdateUserPreferences: %w", err)
+	}
+	return nil
+}
+
+// DeleteUserPreferences removes the preferences singleton item for a user.
+func DeleteUserPreferences(ctx context.Context, userID string) error {
+	key, err := dynamodb.BuildKey("PK", prefsPK(userID), "SK", "PREFS")
+	if err != nil {
+		return fmt.Errorf("repo.DeleteUserPreferences: build key: %w", err)
+	}
+	if err := dynamodb.DeleteItem(ctx, table, key, false, nil, nil); err != nil {
+		return fmt.Errorf("repo.DeleteUserPreferences: %w", err)
+	}
+	return nil
 }

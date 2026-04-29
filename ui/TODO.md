@@ -228,6 +228,17 @@ Sections are ordered by dependency — auth must come before cart, cart before c
 - [ ] **[L]** Document component API (props, slots, events) for shared components once implemented
 - [ ] **[L]** Update `docs/architecture.md` once BFF wiring is complete
 
+## Performance — Homepage
+> Goal: LCP < 150ms. Pre-render + hero image optimization account for ~80% of the gain.
+
+- [ ] **[H]** Pre-render `/` at build time — homepage content is not user-specific; statically render at build and serve from CloudFront with zero server latency; trigger a CloudFront invalidation + rebuild when shop-items data changes (event-bus `shop_item.updated` → CI job)
+- [ ] **[H]** Optimize hero image for LCP — convert to AVIF/WebP, size to viewport, add `fetchpriority="high"` on the `<img>`, host on CloudFront (not a third-party origin), add `<link rel="preload">` in `<head>`; the hero is almost certainly the LCP element and will dominate the score until fixed
+- [ ] **[M]** Lazy-load Threlte/GSAP/Lenis after LCP — none of these should be in the initial bundle; dynamic-import them in `onMount` after first paint so they don't block parse or delay interactivity
+- [ ] **[M]** Parallel BFF fetch + Redis cache for featured products — in `+page.server.ts`, fetch all homepage data in parallel; add a 60s Redis cache in front of the shop-items-api call so DynamoDB is only hit once per minute across all users
+- [ ] **[L]** Add `<link rel="preconnect">` hints for API and CDN origins in `app.html` — saves ~100ms TLS handshake on first asset fetch
+
+---
+
 ## SDK Extractions (komodo-forge-sdk-ts)
 
 - [ ] **[M]** Extract `APIClient` base class into SDK — `src/lib/server/common/client.ts` is a generic HTTP client with RFC 7807 `ProblemDetail` error handling. Currently only used by the UI but needed by any TypeScript service (SSR engine, future BFF workers). Move to `komodo-forge-sdk-ts` so it's available without copying.

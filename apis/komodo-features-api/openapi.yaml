@@ -3,15 +3,30 @@ info:
   title: komodo-features-api
   version: "0.1.0"
   description: |
-    Feature flags service. Currently stubbed - only /health endpoint available.
+    Feature flags and access evaluation service. Loads `access.json` from S3 and caches in Redis.
+    Evaluates flag + role-based access for any service needing runtime feature or permission checks.
+    Private-only for V1 (Lambda, port 7022).
+
+    **Note:** ROUTES.md lists this port under the name `komodo-platforms-api`. The service is not
+    being renamed — `komodo-features-api` covers the same concern. If a separate platforms/tenant
+    access-control service is needed in future, it should be created as a new service.
+
+    **HTTP conventions:**
+    - POST → 201 Created / 400 Bad Request / 409 Conflict
+    - PUT → 200 OK / 404 Not Found
+    - DELETE → 204 No Content / 404 Not Found
+    - GET → 200 OK / 404 Not Found
+
 servers:
-  - url: http://localhost:7039
-    description: Local dev
+  - url: http://localhost:7022
+    description: Local dev (private only)
 
 tags:
   - name: Health
+  - name: Access
 
 paths:
+
   /health:
     get:
       tags: [Health]
@@ -22,9 +37,139 @@ paths:
         "200":
           description: Service is healthy
 
+  /v1/access:
+    get:
+      tags: [Access]
+      summary: Evaluate access for a given application ID
+      description: |
+        Returns the access configuration (role, feature toggles, entitlements) for the specified
+        `appId`. Called by services at request time to gate features or permissions.
+        Service JWT required — VPC-routed.
+      operationId: getAccess
+      x-visibility: private
+      security:
+        - ServiceJWT: []
+      parameters:
+        - name: appId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Application or client identifier to evaluate access for
+      responses:
+        "200":
+          description: Access configuration for the given appId
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Access]
+      summary: Update access configuration for an application
+      description: |
+        Writes role, feature toggles, and entitlement overrides for a given appId.
+        Body shape is a TODO — role, toggles, and entitlements fields TBD.
+        Service JWT required — VPC-routed.
+      operationId: updateAccess
+      x-visibility: private
+      security:
+        - ServiceJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessUpdateRequest"
+      responses:
+        "200":
+          description: Access configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   securitySchemes:
-    bearerAuth:
+    ServiceJWT:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: M2M service JWT — client credentials grant via auth-api
+
+  schemas:
+    AccessResponse:
+      type: object
+      required: [appId, role, toggles, entitlements]
+      properties:
+        appId:
+          type: string
+        role:
+          type: string
+          description: Role assigned to this appId
+        toggles:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: Feature flag key → enabled boolean
+        entitlements:
+          type: array
+          items:
+            type: string
+          description: List of entitlement keys granted to this appId
+
+    AccessUpdateRequest:
+      type: object
+      description: |
+        TODO — body shape TBD. Proposed fields: role (string), toggles (map<string,bool>),
+        entitlements ([]string). Add validation once schema is finalized.
+      properties:
+        role:
+          type: string
+        toggles:
+          type: object
+          additionalProperties:
+            type: boolean
+        entitlements:
+          type: array
+          items:
+            type: string
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

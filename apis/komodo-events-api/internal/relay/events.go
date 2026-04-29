@@ -7,7 +7,7 @@ import (
 	httpErr "github.com/rdevitto86/komodo-forge-sdk-go/http/errors"
 	logger "github.com/rdevitto86/komodo-forge-sdk-go/logging/runtime"
 
-	"komodo-event-bus-api/internal/models"
+	"komodo-events-api/internal/models"
 )
 
 // PublishEvent handles POST /events.
@@ -32,26 +32,52 @@ func (p *Publisher) PublishEvent(wtr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	msgID, err := p.Publish(req.Context(), env)
-	if err != nil {
-		logger.Error("failed to publish event", err,
+	if p.transport == "sns" {
+		msgID, err := p.Publish(req.Context(), env)
+		if err != nil {
+			logger.Error("failed to publish event", err,
+				logger.Attr("event_id", env.ID),
+				logger.Attr("event_type", string(env.Type)),
+			)
+			httpErr.SendError(wtr, req, models.Err.PublishFailed)
+			return
+		}
+
+		logger.Info("event accepted",
 			logger.Attr("event_id", env.ID),
 			logger.Attr("event_type", string(env.Type)),
+			logger.Attr("message_id", msgID),
 		)
-		httpErr.SendError(wtr, req, models.Err.PublishFailed)
+
+		wtr.Header().Set("Content-Type", "application/json")
+		wtr.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(wtr).Encode(map[string]string{
+			"event_id":   env.ID,
+			"message_id": msgID,
+		})
 		return
+	}
+
+	// dynamo transport (default)
+	if p.repo != nil {
+		if err := p.repo.SaveEvent(req.Context(), env); err != nil {
+			logger.Error("failed to persist event", err, logger.Attr("event_id", env.ID))
+		}
+	}
+	if p.dispatcher != nil {
+		if err := p.dispatcher.Dispatch(req.Context(), env); err != nil {
+			logger.Error("dispatch failed", err, logger.Attr("event_id", env.ID))
+		}
 	}
 
 	logger.Info("event accepted",
 		logger.Attr("event_id", env.ID),
 		logger.Attr("event_type", string(env.Type)),
-		logger.Attr("message_id", msgID),
 	)
 
 	wtr.Header().Set("Content-Type", "application/json")
 	wtr.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(wtr).Encode(map[string]string{
-		"event_id":   env.ID,
-		"message_id": msgID,
+		"event_id": env.ID,
 	})
 }

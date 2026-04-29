@@ -1,18 +1,37 @@
-openapi: "3.0.3"
+openapi: "3.1.0"
 info:
-  title: Komodo AI Guardrails API
+  title: komodo-ai-guardrails-api
   version: "0.1.0"
-  description: >
+  description: |
     Content moderation and guardrails proxy. Detects PII, prompt injection,
     and toxicity before text is forwarded to LLM providers.
+    Private-only (Lambda, port 7023).
+
+    **Note:** The README and previous spec listed port 7113 (Analytics block). The correct port
+    per CLAUDE.md and ROUTES.md is 7023 (Core Platform block). The README should be updated.
+
+    **HTTP conventions:**
+    - POST → 201 Created / 400 Bad Request / 409 Conflict
+    - PUT → 200 OK / 404 Not Found
+    - DELETE → 204 No Content / 404 Not Found
+    - GET → 200 OK / 404 Not Found
+
 servers:
-  - url: http://localhost:7113
+  - url: http://localhost:7023
+    description: Local dev (private only)
+
+tags:
+  - name: Health
+  - name: Guardrails
+
 paths:
+
   /health:
     get:
+      tags: [Health]
       summary: Health check
       operationId: health
-      tags: [Health]
+      security: []
       responses:
         "200":
           description: Service is healthy
@@ -35,11 +54,14 @@ paths:
                     example: local
                 required: [status, service, version, provider]
 
-  /guardrails/moderate:
+  /v1/moderate:
     post:
+      tags: [Guardrails]
       summary: Run guardrail checks on a text payload
       operationId: moderate
-      tags: [Guardrails]
+      x-visibility: private
+      security:
+        - ServiceJWT: []
       requestBody:
         required: true
         content:
@@ -53,15 +75,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ModerateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "422":
           description: Validation error
 
 components:
+  securitySchemes:
+    ServiceJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: M2M service JWT — client credentials grant via auth-api
+
   schemas:
     CheckType:
       type: string
       enum: [pii, injection, deviation, coding, obscenity, toxicity]
-      description: >
+      description: |
         - pii: PII detection and redaction in user input; coercion-to-reveal attempts (rule-based)
         - injection: Instruction overrides, delimiter escapes, encoded payloads (rule-based)
         - deviation: Persona override and jailbreak attempts (rule-based)
@@ -105,3 +136,28 @@ components:
         latency_ms:
           type: integer
           description: Processing time in milliseconds
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem+JSON
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

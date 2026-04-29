@@ -1,11 +1,11 @@
-name: komodo-event-bus-api
+name: komodo-events-api
 
 services:
-  event-bus-api:
-    image: komodo-event-bus-api:${VERSION:-dev}
+  events-api:
+    image: komodo-events-api:${VERSION:-dev}
     build:
       context: ..
-      dockerfile: komodo-event-bus-api/Dockerfile
+      dockerfile: komodo-events-api/Dockerfile
       args:
         DISTROLESS_TAG: ${DISTROLESS_TAG:-debug}
     restart: ${RESTART_POLICY:-no}
@@ -16,7 +16,7 @@ services:
     env_file:
       - ../../infra/local/env.shared
     environment:
-      APP_NAME: komodo-event-bus-api
+      APP_NAME: komodo-events-api
       PORT: :7002
       VERSION: ${VERSION:-dev}
       EVAL_RULES_PATH: /app/config/validation_rules.yaml

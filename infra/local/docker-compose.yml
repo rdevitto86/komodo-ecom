@@ -56,7 +56,7 @@ services:
     environment:
       DEBUG: "0"
       ENV: local
-      SERVICES: secretsmanager,s3,dynamodb
+      SERVICES: secretsmanager,s3,dynamodb,sqs,sns
     env_file:
       - localstack/.env
     volumes:
@@ -109,7 +109,7 @@ services:
     profiles: [api, event-bus-api]
     build:
       context: ../..
-      dockerfile: apis/komodo-event-bus-api/Dockerfile
+      dockerfile: apis/komodo-events-api/Dockerfile
     restart: "no"
     deploy:
       resources:
@@ -117,7 +117,7 @@ services:
           memory: 256M
     environment:
       <<: *aws-local
-      APP_NAME: komodo-event-bus-api
+      APP_NAME: komodo-events-api
       ENV: local
       PORT: ":7002"
     ports:
@@ -259,19 +259,36 @@ services:
   #     - "7022:7022"
 
   # ── Address API — 7031 ────────────────────────────────────────────────
-  # TODO: no Dockerfile yet — uncomment when scaffolded
-  # address-api:
-  #   profiles: [api, address-api]
-  #   build:
-  #     context: ../..
-  #     dockerfile: apis/komodo-address-api/Dockerfile
-  #   environment:
-  #     <<: *aws-local
-  #     APP_NAME: komodo-address-api
-  #     ENV: local
-  #     PORT: ":7031"
-  #   ports:
-  #     - "7031:7031"
+
+  address-api:
+    profiles: [api, address-api]
+    build:
+      context: ../..
+      dockerfile: apis/komodo-address-api/Dockerfile
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    environment:
+      <<: *aws-local
+      APP_NAME: komodo-address-api
+      ENV: local
+      PORT: ":7031"
+    ports:
+      - "7031:7031"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7031/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - localstack
+    networks:
+      - komodo-network
 
   # ── Shop Items API — 7041 ─────────────────────────────────────────────
 

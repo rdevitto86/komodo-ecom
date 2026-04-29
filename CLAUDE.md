@@ -157,7 +157,7 @@ Every service uses a `cmd/` directory to separate binary entrypoints by audience
 **Rules:**
 - Use only `cmd/public/` if the service is exclusively customer-facing (e.g. cart-api, support-api).
 - Use only `cmd/private/` if the service is exclusively called by other services (e.g. event-bus-api, communications-api).
-- Use both when the service has both audiences (e.g. auth-api, user-api, entitlements-api).
+- Use both when the service has both audiences (e.g. auth-api, user-api, order-api).
 - Do **not** use a flat `main.go` at the service root — this was the old pattern and has been fully migrated.
 - Do **not** name any entrypoint directory `internal` — Go reserves that name for import visibility enforcement.
 
@@ -173,22 +173,20 @@ Every service uses a `cmd/` directory to separate binary entrypoints by audience
 | auth-api | public + private |
 | user-api | public + private |
 | order-api | public + private |
-| entitlements-api | public + private |
 | shop-promotions-api | public + private |
+| statistics-api | public + private |
 | cart-api | public only |
 | shop-items-api | public only |
 | support-api | public only |
 | address-api | public only |
 | search-api | public only |
-| reviews-api | public only |
 | loyalty-api | public only |
 | order-reservations-api | public only |
-| order-returns-api | public only |
-| features-api | public only |
-| user-wishlist-api | public only |
+| features-api | private only (+ public in V2) |
 | insights-api | public only |
 | event-bus-api | private only (+ cdc Lambda) |
 | communications-api | private only |
+| ai-guardrails-api | private only |
 | payments-api (Rust) | public + private |
 | shop-inventory-api (Rust) | private only |
 
@@ -230,18 +228,15 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 | `cart-api` | EC2 docker-compose | Scaffolded |
 | `shop-inventory-api` | EC2 docker-compose | Scaffolded |
 | `event-bus-api` | EC2 docker-compose | Built, not deployed |
-| `order-api` | EC2 docker-compose | Scaffolded |
-| `order-returns-api` | Lambda | Scaffolded |
+| `order-api` | EC2 docker-compose | Scaffolded (pub + priv — returns merged in) |
 | `order-reservations-api` | EC2 docker-compose | Foundation built — TODO: DynamoDB + checkout flow |
 | `search-api` | EC2 docker-compose | Foundation built — TODO: Typesense integration |
-| `loyalty-api` | EC2 docker-compose | Scaffolded |
-| `reviews-api` | EC2 docker-compose | Scaffolded |
+| `loyalty-api` | EC2 docker-compose | Scaffolded (reviews merged in) |
 | `support-api` | EC2 docker-compose | Implemented (in-memory — wire DynamoDB before prod) |
 | `address-api` | Lambda | TODO: add Dockerfile + Lambda handler |
 | `payments-api` | Lambda | TODO: add Lambda handler |
 | `communications-api` | Lambda | TODO: add Lambda handler |
 | `features-api` | Lambda | TODO: add Dockerfile + Lambda handler |
-| `entitlements-api` | Lambda | TODO: add Dockerfile + Lambda handler |
 
 **Scale-up path:** `infra/deploy/cfn/` templates are ready. When EC2 hits its ceiling, run `deploy-infra.sh` + `deploy-services.sh` to migrate to ECS Fargate. No code changes required.
 
@@ -269,15 +264,15 @@ Every service should maintain this structure. JUNIOR mode uses it as its primary
 |-------|--------|----------|---------|
 | 7001–7010 | Frontend & Infrastructure | 7001 `ui`, 7002 `event-bus-api`, 7003 `ssr-engine-svelte` | 7004–7010 |
 | 7011–7020 | Identity & Security | 7011 `auth-api` pub, 7012 `auth-api` priv | 7013–7020 |
-| 7021–7030 | Core Platform | 7021 `entitlements-api`, 7022 `features-api` | 7023–7030 |
+| 7021–7030 | Core Platform | 7021 reserved, 7022 `features-api`, 7023 `ai-guardrails-api` | 7024–7030 |
 | 7031–7040 | Address & Geo | 7031 `address-api` | 7032–7040 |
 | 7041–7050 | Commerce & Catalog | 7041 `shop-items-api`, 7042 `search-api`, 7043 `cart-api`, 7044 `shop-inventory-api`, 7045 `shop-promotions-api` | 7046–7050 |
-| 7051–7060 | User & Profile | 7051 `user-api` pub, 7052 `user-api` priv, 7053 `user-wishlist-api` | 7054–7060 |
-| 7061–7070 | Orders | 7061 `order-api`, 7062 `order-returns-api`, 7063 `order-reservations-api` | 7064–7070 |
+| 7051–7060 | User & Profile | 7051 `user-api` pub, 7052 `user-api` priv | 7053–7060 |
+| 7061–7070 | Orders & Fulfillment | 7061 `order-api` pub, 7062 `order-api` priv, 7063 `order-reservations-api`, 7064 `shipping-api` (planned) | 7065–7070 |
 | 7071–7080 | Payments | 7071 `payments-api` | 7072–7080 |
 | 7081–7090 | Communications | 7081 `communications-api` | 7082–7090 |
-| 7091–7100 | Loyalty & Social | 7091 `loyalty-api`, 7092 `reviews-api` | 7093–7100 |
+| 7091–7100 | Loyalty & Social | 7091 `loyalty-api` | 7092–7100 |
 | 7101–7110 | Support & CX | 7101 `support-api` | 7102–7110 |
-| 7111–7120 | Analytics & Discovery | — | 7111–7120 |
+| 7111–7120 | Analytics & Discovery | 7111 `statistics-api` pub, 7112 `statistics-api` priv, 7113 `slm-api` (planned), 7114 `insights-api` | 7115–7120 |
 
 > **Rust variants:** `komodo-payments-api` and `komodo-shop-inventory-api` are teaching experiments — no ports assigned yet.

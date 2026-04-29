@@ -9,6 +9,12 @@ info:
     - Public (7011): client-facing OAuth endpoints + JWKS
     - Internal (7012): token validation and client registry for service-to-service calls
 
+    **HTTP conventions:**
+    - POST → 201 Created / 400 Bad Request / 409 Conflict
+    - PUT → 200 OK / 404 Not Found
+    - DELETE → 204 No Content / 404 Not Found
+    - GET → 200 OK / 404 Not Found
+
 servers:
   - url: http://localhost:7011
     description: Public (local)
@@ -18,6 +24,7 @@ servers:
 tags:
   - name: Health
   - name: OAuth
+  - name: OTP
   - name: JWKS
   - name: Internal
 
@@ -38,6 +45,7 @@ paths:
       tags: [JWKS]
       summary: JSON Web Key Set — public keys for JWT verification
       operationId: getJWKS
+      x-visibility: public
       security: []
       responses:
         "200":
@@ -47,7 +55,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/JWKS"
 
-  /oauth/token:
+  /v1/oauth/token:
     post:
       tags: [OAuth]
       summary: Issue an access token
@@ -55,6 +63,7 @@ paths:
         Supports `client_credentials` and `refresh_token` grant types.
         `authorization_code` grant type also accepted when `code` and `redirectUri` are present.
       operationId: issueToken
+      x-visibility: public
       security: []
       requestBody:
         required: true
@@ -74,11 +83,12 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /oauth/authorize:
+  /v1/oauth/authorize:
     get:
       tags: [OAuth]
       summary: Authorization endpoint (authorization_code flow)
       operationId: authorize
+      x-visibility: public
       security: []
       parameters:
         - name: response_type
@@ -112,11 +122,78 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
-  /oauth/introspect:
+  /v1/oauth/revoke:
     post:
       tags: [OAuth]
+      summary: Revoke a token
+      operationId: revokeToken
+      x-visibility: public
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeRequest"
+      responses:
+        "200":
+          description: Token revoked (always 200 per RFC 7009 — no error if token is already invalid)
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/otp/request:
+    post:
+      tags: [OTP]
+      summary: Request a one-time password (passwordless login / email verification)
+      operationId: requestOTP
+      x-visibility: public
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OTPRequest"
+      responses:
+        "200":
+          description: OTP sent — response is always 200 regardless of whether the email exists (prevents enumeration)
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /v1/otp/verify:
+    post:
+      tags: [OTP]
+      summary: Verify a one-time password and issue a short-lived token
+      operationId: verifyOTP
+      x-visibility: public
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OTPVerifyRequest"
+      responses:
+        "200":
+          description: OTP valid — returns a short-lived JWT or session token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Internal ────────────────────────────────────────────────────────────────
+  # Served on port 7012. VPC/IAM is the primary access control layer.
+
+  /v1/oauth/introspect:
+    post:
+      tags: [Internal]
       summary: Introspect a token (requires client credentials)
       operationId: introspectToken
+      x-visibility: private
       security:
         - ClientJWT: []
       requestBody:
@@ -135,29 +212,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /oauth/revoke:
-    post:
-      tags: [OAuth]
-      summary: Revoke a token (requires client credentials)
-      operationId: revokeToken
-      security:
-        - ClientJWT: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RevokeRequest"
-      responses:
-        "200":
-          description: Token revoked (always 200 per RFC 7009 — no error if token is already invalid)
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
-  # ── Internal ────────────────────────────────────────────────────────────────
-  # Served on port 7012. VPC/IAM is the primary access control layer.
-
-  /internal/token/validate:
+  /v1/token/validate:
     post:
       tags: [Internal]
       summary: Validate and decode a JWT (service-to-service)
@@ -166,6 +221,7 @@ paths:
         No client JWT required — VPC access is the control.
         Requiring auth here would create a circular dependency.
       operationId: validateToken
+      x-visibility: private
       security: []
       requestBody:
         required: true
@@ -183,11 +239,12 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
-  /internal/clients:
+  /v1/clients:
     get:
       tags: [Internal]
       summary: List all registered OAuth clients
       operationId: listClients
+      x-visibility: private
       security: []
       responses:
         "200":
@@ -199,11 +256,12 @@ paths:
                 items:
                   $ref: "#/components/schemas/RegisteredClient"
 
-  /internal/clients/{id}:
+  /v1/clients/{id}:
     get:
       tags: [Internal]
       summary: Get a registered client by ID
       operationId: getClient
+      x-visibility: private
       security: []
       parameters:
         - name: id
@@ -227,7 +285,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Service/client JWT — required for introspect and revoke
+      description: Service/client JWT — required for introspect
 
   schemas:
     TokenRequest:
@@ -269,6 +327,25 @@ components:
           type: string
         scope:
           type: string
+
+    OTPRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    OTPVerifyRequest:
+      type: object
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          format: email
+        code:
+          type: string
+          description: The OTP code delivered to the user
 
     IntrospectRequest:
       type: object

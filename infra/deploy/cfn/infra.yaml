@@ -414,10 +414,10 @@ Resources:
         LifecyclePolicyText: |
           {"rules":[{"rulePriority":1,"description":"Keep last 10 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":10},"action":{"type":"expire"}}]}
 
-  ECREventBusApi:
+  ECREventsApi:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: !Sub komodo-event-bus-api-${Environment}
+      RepositoryName: !Sub komodo-events-api-${Environment}
       ImageScanningConfiguration:
         ScanOnPush: true
       LifecyclePolicy:

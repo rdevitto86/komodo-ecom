@@ -3,15 +3,35 @@ info:
   title: komodo-order-reservations-api
   version: "0.1.0"
   description: |
-    Order reservation service for inventory management. Manages technician booking slots and reservations.
+    Reservation and slot management service. Handles technician booking slots for
+    repair intake and service appointments. Supports both authenticated and guest
+    callers using email as the universal identity key.
+
+    **Two servers:**
+    - Public (7063): customer-facing slot browsing and reservation management
+    - Internal (7063, path-routed): slot sync for service-to-service callers; private
+      routes are served on the same port and differentiated by middleware auth scope.
+      A dedicated private port will be assigned when shipping-api claims 7064.
+
+    **HTTP conventions:**
+    - POST → 201 Created / 400 Bad Request / 409 Conflict
+    - PUT → 200 OK / 404 Not Found
+    - DELETE → 204 No Content / 404 Not Found
+    - GET → 200 OK / 404 Not Found
+
 servers:
-  - url: http://localhost:7035
-    description: Local dev
+  - url: http://localhost:7063
+    description: Public (local)
+  - url: http://localhost:7063
+    description: Internal (local) — private routes differentiated by auth scope; dedicated port TBD (7064 reserved for shipping-api)
 
 tags:
   - name: Health
   - name: Slots
-  - name: Bookings
+  - name: Reservations
+
+security:
+  - bearerAuth: []
 
 paths:
   /health:
@@ -24,12 +44,39 @@ paths:
         "200":
           description: Service is healthy
 
-  /slots:
+  # ── Slots — public ─────────────────────────────────────────────────────────
+
+  /v1/slots:
     get:
       tags: [Slots]
-      summary: Get all available slots
+      summary: Get available slots
       operationId: getAvailableSlots
+      x-visibility: public
       security: []
+      description: |
+        Returns available booking slots filtered by date, service type, and location.
+        All three query parameters are optional — omitting them returns all available
+        slots for the near-term window.
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: Filter slots for a specific date (YYYY-MM-DD)
+        - name: serviceType
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by service type (e.g. `repair`, `consultation`)
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by location identifier
       responses:
         "200":
           description: Available slots
@@ -37,109 +84,158 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SlotsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
-  /slots/{date}:
+  # ── Reservations — public ──────────────────────────────────────────────────
+
+  /v1/reservations:
     get:
-      tags: [Slots]
-      summary: Get available slots for a specific date
-      operationId: getSlotsByDate
-      security: []
-      parameters:
-        - name: date
-          in: path
-          required: true
-          schema:
-            type: string
-            format: date
+      tags: [Reservations]
+      summary: List reservations for the authenticated user
+      operationId: listReservations
+      x-visibility: public
+      description: |
+        Returns all reservations for the authenticated user, newest first.
       responses:
         "200":
-          description: Available slots for date
+          description: Reservations list
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SlotsResponse"
+                $ref: "#/components/schemas/ReservationsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
-  /bookings:
     post:
-      tags: [Bookings]
-      summary: Create a booking
-      operationId: createBooking
-      security:
-        - bearerAuth: []
+      tags: [Reservations]
+      summary: Create a reservation (unified — guest or authenticated)
+      operationId: createReservation
+      x-visibility: public
+      security: []
+      description: |
+        Unified reservation creation. Accepts both authenticated and guest callers.
+        Email is the universal identity key — if a registered account matches, the
+        reservation is auto-linked to `USER#<userId>`; otherwise keyed as `GUEST#<uuid>`.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateBookingRequest"
+              $ref: "#/components/schemas/CreateReservationRequest"
       responses:
         "201":
-          description: Booking created
+          description: Reservation created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Booking"
+                $ref: "#/components/schemas/Reservation"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Slot no longer available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
-  /bookings/{id}:
+  /v1/reservations/{id}:
     get:
-      tags: [Bookings]
-      summary: Get a booking by ID
-      operationId: getBooking
-      security:
-        - bearerAuth: []
+      tags: [Reservations]
+      summary: Get a reservation by ID
+      operationId: getReservation
+      x-visibility: public
+      security: []
+      description: |
+        Returns a reservation. Supports authenticated (JWT) and guest (email query
+        param) callers. Guest access requires the `email` param to match the booking
+        record; mismatch returns 404 to prevent ID enumeration.
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: string
+        - name: email
+          in: query
+          required: false
+          description: Required when no JWT is provided. Must match the email on the reservation.
+          schema:
+            type: string
+            format: email
       responses:
         "200":
-          description: Booking details
+          description: Reservation details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Booking"
+                $ref: "#/components/schemas/Reservation"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
     put:
-      tags: [Bookings]
-      summary: Cancel a booking
-      operationId: cancelBooking
-      security:
-        - bearerAuth: []
+      tags: [Reservations]
+      summary: Update a reservation (reschedule or cancel)
+      operationId: updateReservation
+      x-visibility: public
+      description: |
+        Updates a reservation. Used for rescheduling (new date/slot) or cancellation.
+        Caller must be the owner (JWT subject or matching email).
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReservationRequest"
       responses:
         "200":
-          description: Booking cancelled
+          description: Reservation updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Booking"
+                $ref: "#/components/schemas/Reservation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: Requested slot no longer available or reservation not in updatable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
-  /bookings/{id}/confirm:
+  /v1/reservations/{id}/confirm:
     put:
-      tags: [Bookings]
-      summary: Confirm a booking
-      operationId: confirmBooking
-      security:
-        - bearerAuth: []
+      tags: [Reservations]
+      summary: Confirm a reservation
+      operationId: confirmReservation
+      x-visibility: public
+      description: |
+        Moves a reservation from `pending` to `confirmed`. Typically called after
+        payment or deposit is received.
       parameters:
         - name: id
           in: path
@@ -148,15 +244,51 @@ paths:
             type: string
       responses:
         "200":
-          description: Booking confirmed
+          description: Reservation confirmed
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Booking"
+                $ref: "#/components/schemas/Reservation"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: Reservation not in confirmable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ── Slots — private ────────────────────────────────────────────────────────
+
+  /v1/slots/sync:
+    post:
+      tags: [Slots]
+      summary: Sync slot inventory (internal)
+      operationId: syncSlots
+      x-visibility: private
+      description: |
+        Bulk-upserts slot availability. Called by internal services (e.g. a scheduling
+        admin tool or a cron-triggered Lambda) to refresh the slot pool. Protected by
+        scope-checked M2M JWT on the private middleware stack.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SlotSyncRequest"
+      responses:
+        "201":
+          description: Slots synced
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
 components:
   securitySchemes:
@@ -191,9 +323,26 @@ components:
           items:
             $ref: "#/components/schemas/TimeSlot"
 
-    CreateBookingRequest:
+    SlotSyncRequest:
       type: object
-      required: [date, slot_start, slot_end]
+      required: [date, serviceType, locationId, slots]
+      properties:
+        date:
+          type: string
+          format: date
+        serviceType:
+          type: string
+        locationId:
+          type: string
+        slots:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/TimeSlot"
+
+    CreateReservationRequest:
+      type: object
+      required: [date, slot_start, slot_end, service_type]
       properties:
         date:
           type: string
@@ -204,15 +353,21 @@ components:
         slot_end:
           type: string
           description: HH:MM format
+        service_type:
+          type: string
+          description: e.g. `repair`, `consultation`
+        location_id:
+          type: string
+        email:
+          type: string
+          format: email
+          description: Required for guest callers (no JWT)
         notes:
           type: string
 
-    Booking:
+    UpdateReservationRequest:
       type: object
-      required: [id, date, slot_start, slot_end, status, created_at]
       properties:
-        id:
-          type: string
         date:
           type: string
           format: date
@@ -224,7 +379,39 @@ components:
           description: HH:MM format
         status:
           type: string
-          enum: [pending, confirmed, cancelled]
+          enum: [cancelled]
+          description: Set to `cancelled` to cancel the reservation
+        notes:
+          type: string
+
+    Reservation:
+      type: object
+      required: [id, date, slot_start, slot_end, status, created_at]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+          description: "`USER#<id>` for registered accounts, `GUEST#<uuid>` for guests"
+        email:
+          type: string
+          format: email
+        date:
+          type: string
+          format: date
+        slot_start:
+          type: string
+          description: HH:MM format
+        slot_end:
+          type: string
+          description: HH:MM format
+        service_type:
+          type: string
+        location_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled, completed]
         notes:
           type: string
         created_at:
@@ -233,6 +420,17 @@ components:
         updated_at:
           type: string
           format: date-time
+
+    ReservationsResponse:
+      type: object
+      required: [reservations]
+      properties:
+        reservations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Reservation"
+        next_cursor:
+          type: string
 
     Problem:
       type: object
@@ -265,7 +463,13 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
     NotFound:
-      description: Booking not found
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    InternalError:
+      description: Internal server error
       content:
         application/problem+json:
           schema:

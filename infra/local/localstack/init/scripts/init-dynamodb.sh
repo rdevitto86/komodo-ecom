@@ -11,13 +11,12 @@
 #   komodo-user-api       → komodo-users  (single-table: profiles, addresses, preferences)
 #   komodo-shop-items-api → komodo-shop-items    [TODO: add when data model is finalised]
 #   komodo-cart-api       → komodo-cart          [TODO]
-#   komodo-order-api      → komodo-orders        [TODO]
+#   komodo-order-api      → komodo-orders, komodo-returns (merged)   [TODO]
 #   komodo-inventory-api  → komodo-inventory     [TODO]
 #   komodo-payments-api   → komodo-payments      [TODO]
-#   komodo-returns-api    → komodo-returns       [TODO]
 #   komodo-address-api    → komodo-addresses     [TODO]
-#   komodo-loyalty-api    → komodo-loyalty       [TODO]
-#   komodo-reviews-api    → komodo-reviews       [TODO]
+#   komodo-loyalty-api    → komodo-loyalty, komodo-reviews (merged)  [TODO]
+#   komodo-event-bus-api  → komodo-events, komodo-event-subscriptions
 #
 # Naming: local tables have no environment suffix (komodo-users, not komodo-users-local).
 # CFn appends -${Environment} for dev/stg/prod.
@@ -86,5 +85,37 @@ awslocal dynamodb create-table \
 #     --billing-mode PAY_PER_REQUEST \
 #     --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES \
 #     2>/dev/null || echo "<Service> table already exists"
+
+# ── komodo-event-bus-api ──────────────────────────────────────────────────
+
+echo "Creating Events table (komodo-event-bus-api)..."
+awslocal dynamodb create-table \
+  --table-name komodo-events \
+  --attribute-definitions \
+    AttributeName=event_id,AttributeType=S \
+    AttributeName=domain,AttributeType=S \
+  --key-schema \
+    AttributeName=event_id,KeyType=HASH \
+    AttributeName=domain,KeyType=RANGE \
+  --billing-mode PAY_PER_REQUEST \
+  --stream-specification StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES \
+  2>/dev/null || echo "Events table already exists"
+
+awslocal dynamodb update-time-to-live \
+  --table-name komodo-events \
+  --time-to-live-specification "Enabled=true,AttributeName=expires_at" \
+  2>/dev/null || true
+
+echo "Creating EventSubscriptions table (komodo-event-bus-api)..."
+awslocal dynamodb create-table \
+  --table-name komodo-event-subscriptions \
+  --attribute-definitions \
+    AttributeName=event_type,AttributeType=S \
+    AttributeName=subscriber_url,AttributeType=S \
+  --key-schema \
+    AttributeName=event_type,KeyType=HASH \
+    AttributeName=subscriber_url,KeyType=RANGE \
+  --billing-mode PAY_PER_REQUEST \
+  2>/dev/null || echo "EventSubscriptions table already exists"
 
 echo "DynamoDB initialized successfully"

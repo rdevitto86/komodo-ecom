@@ -1,6 +1,6 @@
 openapi: "3.1.0"
 info:
-  title: komodo-event-bus-api
+  title: komodo-events-api
   version: "1.0.0"
   description: |
     Internal event relay service. Accepts domain events from producer services and

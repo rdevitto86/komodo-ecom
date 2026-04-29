@@ -5,9 +5,22 @@ info:
   description: |
     Order management service. Consumes cart checkout tokens to create and manage
     customer orders. Writes to DynamoDB with a GSI for user-scoped listing.
+
+    **Two servers:**
+    - Public (7061): customer-facing order submission and lookup
+    - Internal (7062): service-to-service return state transitions (approve / reject / receive)
+
+    **HTTP conventions:**
+    - POST → 201 Created / 400 Bad Request / 409 Conflict
+    - PUT → 200 OK / 404 Not Found
+    - DELETE → 204 No Content / 404 Not Found
+    - GET → 200 OK / 404 Not Found
+
 servers:
   - url: http://localhost:7061
-    description: Local dev
+    description: Public (local)
+  - url: http://localhost:7062
+    description: Internal (local)
 
 tags:
   - name: Health
@@ -28,11 +41,14 @@ paths:
         "200":
           description: Service is healthy
 
-  /orders:
+  # ── Public order routes (7061) ─────────────────────────────────────────────
+
+  /v1/orders:
     post:
       tags: [Orders]
       summary: Place order (unified — guest or authenticated)
       operationId: placeOrderUnified
+      x-visibility: public
       security: []
       description: |
         Unified order submission route that accepts both authenticated and guest
@@ -63,14 +79,56 @@ paths:
                 $ref: "#/components/schemas/Order"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Checkout token already used or order already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: List orders for the authenticated user
+      operationId: listOrders
+      x-visibility: public
+      description: |
+        Returns a paginated list of orders for the authenticated user, newest first.
+        Uses cursor-based pagination — pass the `nextCursor` value from the previous
+        response as the `cursor` parameter to fetch the next page.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Opaque continuation token from a previous response
+      responses:
+        "200":
+          description: Paginated order list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/orders/{orderId}:
     get:
       tags: [Orders]
       summary: Get order (guest-compatible)
       operationId: getOrderUnified
+      x-visibility: public
       security: []
       description: |
         Retrieves a single order by ID. Supports both authenticated and guest access.
@@ -83,7 +141,7 @@ paths:
         email stored on the order (case-insensitive). Any mismatch returns 404 to prevent
         order ID enumeration.
 
-        Designed for confirmation email deep links: `GET /orders/{orderId}?email=<email>`
+        Designed for confirmation email deep links: `GET /v1/orders/{orderId}?email=<email>`
       parameters:
         - name: orderId
           in: path
@@ -111,107 +169,16 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /me/orders:
-    post:
-      tags: [Orders]
-      summary: Place order
-      operationId: placeOrder
-      description: |
-        Consumes a checkout token issued by cart-api to create a new order.
-        Idempotent — duplicate requests with the same checkoutToken return the
-        original order (Redis-backed, 24h TTL).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PlaceOrderRequest"
-      responses:
-        "201":
-          description: Order created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Order"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-    get:
-      tags: [Orders]
-      summary: List orders
-      operationId: listOrders
-      description: |
-        Returns a paginated list of orders for the authenticated user, sorted
-        newest-first. The userId is always derived from the JWT — never from
-        the URL.
-      parameters:
-        - name: limit
-          in: query
-          description: Maximum number of orders to return (1–100, default 20)
-          schema:
-            type: integer
-            default: 20
-            minimum: 1
-            maximum: 100
-        - name: cursor
-          in: query
-          description: Opaque pagination cursor from a previous response's nextCursor field
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Paginated order list
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OrderListResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /me/orders/{orderId}:
-    get:
-      tags: [Orders]
-      summary: Get order detail
-      operationId: getOrder
-      description: |
-        Returns the full order for the authenticated user. The userId is derived
-        from the JWT — never from the URL. Returns 404 for both missing orders
-        and orders owned by a different user to prevent order-ID enumeration.
-      parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Order detail
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Order"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /me/orders/{orderId}/cancel:
+  /v1/orders/{orderId}/cancel:
     post:
       tags: [Orders]
       summary: Cancel order
       operationId: cancelOrder
-      description: Cancels an order if it has not yet been shipped. Not yet implemented.
+      x-visibility: public
+      description: |
+        Cancels an order. Only orders in `pending` or `confirmed` status are
+        eligible — attempting to cancel a shipped or delivered order returns 409.
+        Returns the updated order on success.
       parameters:
         - name: orderId
           in: path
@@ -227,20 +194,25 @@ paths:
                 $ref: "#/components/schemas/Order"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "409":
-          description: Order cannot be cancelled (already shipped or cancelled)
-        "501":
-          description: Not implemented
+          description: Order cannot be cancelled (already cancelled, shipped, or delivered)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
-  # ── Returns (RMA) ──────────────────────────────────────────────────────────
+  # ── Returns — public (7061) ────────────────────────────────────────────────
 
-  /me/orders/returns:
+  /v1/orders/returns:
     get:
       tags: [Returns]
       summary: List user's return requests
       operationId: listMyReturns
+      x-visibility: public
       parameters:
         - name: status
           in: query
@@ -266,10 +238,12 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalError"
+
     post:
       tags: [Returns]
       summary: Initiate a return request
       operationId: createReturn
+      x-visibility: public
       requestBody:
         required: true
         content:
@@ -296,11 +270,12 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /me/orders/returns/{returnId}:
+  /v1/orders/returns/{returnId}:
     get:
       tags: [Returns]
       summary: Get return status
       operationId: getMyReturn
+      x-visibility: public
       parameters:
         - $ref: "#/components/parameters/ReturnId"
       responses:
@@ -316,10 +291,12 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+
     delete:
       tags: [Returns]
       summary: Cancel a pending return request
       operationId: cancelMyReturn
+      x-visibility: public
       parameters:
         - $ref: "#/components/parameters/ReturnId"
       responses:
@@ -338,66 +315,14 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  # ── Internal order routes (service-to-service, scope-checked JWT) ──────────
+  # ── Returns — private (7062, service-to-service, scope-checked JWT) ────────
 
-  /internal/orders/{orderId}:
-    get:
-      tags: [Orders]
-      summary: Get order (internal service lookup)
-      operationId: getOrderInternal
-      description: |
-        Cross-user order lookup for internal callers (payments-api, returns-api).
-        No user ownership check — protected by scope-checked JWT on the private
-        middleware stack. Returns 404 when the order does not exist.
-      parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Order detail
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Order"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  # ── Internal returns routes (service-to-service, scope-checked JWT) ────────
-
-  /internal/returns/{returnId}:
-    get:
-      tags: [Returns]
-      summary: Get return (internal service lookup)
-      operationId: getReturnInternal
-      parameters:
-        - $ref: "#/components/parameters/ReturnId"
-      responses:
-        "200":
-          description: Return details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Return"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /internal/returns/{returnId}/approve:
+  /v1/returns/{returnId}/approve:
     put:
       tags: [Returns]
       summary: Approve return and trigger refund
       operationId: approveReturn
+      x-visibility: private
       parameters:
         - $ref: "#/components/parameters/ReturnId"
       requestBody:
@@ -425,38 +350,12 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /internal/returns/{returnId}/receive:
-    put:
-      tags: [Returns]
-      summary: Mark items received, trigger restock and loyalty reversal
-      operationId: receiveReturn
-      parameters:
-        - $ref: "#/components/parameters/ReturnId"
-      responses:
-        "200":
-          description: Return processed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Return"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          description: Return not in receivable state
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /internal/returns/{returnId}/reject:
+  /v1/returns/{returnId}/reject:
     put:
       tags: [Returns]
       summary: Reject return request
       operationId: rejectReturn
+      x-visibility: private
       parameters:
         - $ref: "#/components/parameters/ReturnId"
       requestBody:
@@ -479,6 +378,34 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /v1/returns/{returnId}/receive:
+    put:
+      tags: [Returns]
+      summary: Mark items received, trigger restock and loyalty reversal
+      operationId: receiveReturn
+      x-visibility: private
+      parameters:
+        - $ref: "#/components/parameters/ReturnId"
+      responses:
+        "200":
+          description: Return processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Return"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Return not in receivable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -496,21 +423,13 @@ components:
         format: uuid
 
   schemas:
-    PlaceOrderRequest:
-      type: object
-      required: [checkoutToken]
-      properties:
-        checkoutToken:
-          type: string
-          description: Checkout token issued by cart-api after /me/cart/checkout
-
     UnifiedPlaceOrderRequest:
       type: object
       required: [checkoutToken]
       properties:
         checkoutToken:
           type: string
-          description: Checkout token issued by cart-api after /me/cart/checkout
+          description: Checkout token issued by cart-api after /cart/checkout
         email:
           type: string
           format: email

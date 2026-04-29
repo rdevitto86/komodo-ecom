@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"komodo-order-api/internal/config"
 	"komodo-order-api/internal/models"
@@ -226,6 +228,46 @@ func ListOrdersByUser(ctx context.Context, userID string, limit int, cursor stri
 	}
 
 	return orders, nextCursor, nil
+}
+
+// UpdateOrderStatus conditionally sets the order status to newStatus.
+// The write is rejected if the stored status != expectedStatus, guarding against
+// concurrent writes racing to transition the same order.
+//
+// "status" is a DynamoDB reserved word — #s is used as the expression attribute name.
+func UpdateOrderStatus(ctx context.Context, orderID string, newStatus models.OrderStatus, expectedStatus models.OrderStatus) error {
+	client, err := getClient()
+	if err != nil {
+		return fmt.Errorf("repo.UpdateOrderStatus: init client: %w", err)
+	}
+
+	input := &dynamodb.UpdateItemInput{
+		TableName: aws.String(table),
+		Key: map[string]ddbTypes.AttributeValue{
+			"PK": &ddbTypes.AttributeValueMemberS{Value: orderPK(orderID)},
+			"SK": &ddbTypes.AttributeValueMemberS{Value: "METADATA"},
+		},
+		UpdateExpression:    aws.String("SET #s = :new, updated_at = :ua"),
+		ConditionExpression: aws.String("attribute_exists(PK) AND #s = :expected"),
+		ExpressionAttributeNames: map[string]string{
+			"#s": "status",
+		},
+		ExpressionAttributeValues: map[string]ddbTypes.AttributeValue{
+			":new":      &ddbTypes.AttributeValueMemberS{Value: string(newStatus)},
+			":expected": &ddbTypes.AttributeValueMemberS{Value: string(expectedStatus)},
+			":ua":       &ddbTypes.AttributeValueMemberS{Value: time.Now().UTC().Format(time.RFC3339)},
+		},
+	}
+
+	_, err = client.UpdateItem(ctx, input)
+	if err != nil {
+		var condErr *ddbTypes.ConditionalCheckFailedException
+		if errors.As(err, &condErr) {
+			return fmt.Errorf("repo.UpdateOrderStatus: condition failed: %w", models.ErrInvalidTransition)
+		}
+		return fmt.Errorf("repo.UpdateOrderStatus: update: %w", err)
+	}
+	return nil
 }
 
 // recordToModel converts an unmarshaled orderRecord to the Order domain model.

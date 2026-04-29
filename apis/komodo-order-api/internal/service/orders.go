@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -44,6 +45,20 @@ type UserServiceAdapter interface {
 	LookupUserByEmail(ctx context.Context, email string) (string, error)
 }
 
+// EventBusAdapter is the interface used to publish domain events to event-bus-api.
+// Stubbed until the HTTP adapter is implemented.
+type EventBusAdapter interface {
+	// Publish sends an event of the given type with the provided payload.
+	// Callers treat publish failures as non-fatal — log and continue.
+	Publish(ctx context.Context, eventType string, payload map[string]any) error
+}
+
+// cancellableStatuses is the set of order states from which cancellation is permitted.
+var cancellableStatuses = map[models.OrderStatus]bool{
+	models.OrderStatusPending:   true,
+	models.OrderStatusConfirmed: true,
+}
+
 // CheckoutSnapshot is the cart-api payload returned for a valid checkout token.
 // Fields will be populated once the cart-api adapter is implemented.
 type CheckoutSnapshot struct {
@@ -58,93 +73,20 @@ type OrderService struct {
 	cart      CartServiceAdapter
 	inventory InventoryServiceAdapter
 	user      UserServiceAdapter
+	eventBus  EventBusAdapter
 }
 
 // NewOrderService constructs an OrderService with the provided adapters.
 // Pass nil for any adapter that is not yet implemented — the service will skip
 // the corresponding integration and treat the request conservatively (e.g.
 // nil user adapter → treat all placements as guest).
-func NewOrderService(cart CartServiceAdapter, inventory InventoryServiceAdapter, user UserServiceAdapter) *OrderService {
+func NewOrderService(cart CartServiceAdapter, inventory InventoryServiceAdapter, user UserServiceAdapter, eventBus EventBusAdapter) *OrderService {
 	return &OrderService{
 		cart:      cart,
 		inventory: inventory,
 		user:      user,
+		eventBus:  eventBus,
 	}
-}
-
-// PlaceOrder executes the core purchase flow:
-//  1. Idempotency check — return cached response if token already processed.
-//  2. Validate checkout token via cart-api (stubbed).
-//  3. Confirm inventory holds via shop-inventory-api (stubbed).
-//  4. Persist the order in DynamoDB.
-//  5. Store idempotency key in Redis.
-func (s *OrderService) PlaceOrder(ctx context.Context, userID, checkoutToken string) (*models.Order, error) {
-	// 1. Idempotency check.
-	idemKey := idempotencyKey(checkoutToken)
-	if existing, err := elasticache.Get(idemKey); err == nil && existing != "" {
-		// Key exists — this is a duplicate submission. Fetch and return the original order.
-		order, fetchErr := repo.GetOrder(ctx, existing)
-		if fetchErr != nil {
-			// GetOrder is not yet implemented; log and fall through to re-create
-			// (safe because DynamoDB condition prevents double-write).
-			logger.Warn("service.PlaceOrder: idempotency hit but GetOrder not implemented; falling through")
-		} else if order != nil {
-			return order, nil
-		}
-	}
-
-	// 2. Validate checkout token via cart-api adapter (stubbed).
-	// TODO: replace stub with real HTTP call to cart-api once adapter is implemented.
-	var snapshot *CheckoutSnapshot
-	if s.cart != nil {
-		var cartErr error
-		snapshot, cartErr = s.cart.ValidateCheckoutToken(ctx, userID, checkoutToken)
-		if cartErr != nil {
-			return nil, fmt.Errorf("service.PlaceOrder: validate checkout token: %w", cartErr)
-		}
-	}
-
-	// 3. Build the order — use snapshot data when available, zero values otherwise.
-	now := time.Now().UTC().Format(time.RFC3339)
-	orderID := uuid.NewString()
-
-	order := &models.Order{
-		ID:        orderID,
-		DisplayID: buildDisplayID(orderID),
-		UserID:    "USER#" + userID, // GSI1PK key convention — prefixed for consistency with unified route
-		Status:    models.OrderStatusPending,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-	if snapshot != nil {
-		order.Items = snapshot.Items
-		order.Address = snapshot.Address
-		order.Payment = snapshot.Payment
-		order.Totals = snapshot.Totals
-	}
-
-	// 4. Confirm inventory holds (stubbed).
-	// TODO: replace stub with real HTTP call to shop-inventory-api once adapter is implemented.
-	if s.inventory != nil {
-		if err := s.inventory.ConfirmHolds(ctx, orderID, order.Items); err != nil {
-			return nil, fmt.Errorf("service.PlaceOrder: confirm holds: %w", err)
-		}
-	}
-
-	// 5. Persist the order.
-	if err := repo.CreateOrder(ctx, order); err != nil {
-		return nil, fmt.Errorf("service.PlaceOrder: create order: %w", err)
-	}
-
-	// 6. Store idempotency key so duplicate submissions return the same order.
-	if err := elasticache.Set(idemKey, orderID, idempotencyTTL); err != nil {
-		// Non-fatal: log and continue. The order was written; the idempotency key
-		// is a best-effort guard. A retry will either hit the DynamoDB condition
-		// expression (no-op) or re-enter this path without the cache hit.
-		logger.Warn("service.PlaceOrder: failed to set idempotency key in Redis; order already persisted")
-	}
-
-	return order, nil
 }
 
 // PlaceOrderUnified executes the purchase flow for both authenticated and guest
@@ -306,6 +248,60 @@ func (s *OrderService) GetOrderInternal(ctx context.Context, orderID string) (*m
 	if err != nil {
 		return nil, fmt.Errorf("service.GetOrderInternal: %w", err)
 	}
+	return order, nil
+}
+
+// CancelOrder transitions an order to the cancelled state.
+// Only orders in pending or confirmed status can be cancelled; all other
+// transitions return ErrNotCancellable (or ErrAlreadyCancelled for orders
+// that are already cancelled).
+// Ownership is enforced — mismatches return ErrNotFound to prevent callers
+// from inferring order existence via status-code differences.
+// Event publication to event-bus-api is best-effort: a publish failure is
+// logged but does not roll back the cancellation.
+func (s *OrderService) CancelOrder(ctx context.Context, userID, orderID string) (*models.Order, error) {
+	order, err := repo.GetOrder(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("service.CancelOrder: %w", models.ErrNotFound)
+	}
+
+	if order.UserID != "USER#"+userID {
+		return nil, fmt.Errorf("service.CancelOrder: ownership mismatch: %w", models.ErrNotFound)
+	}
+
+	if order.Status == models.OrderStatusCancelled {
+		return nil, fmt.Errorf("service.CancelOrder: %w", models.ErrAlreadyCancelled)
+	}
+	if !cancellableStatuses[order.Status] {
+		return nil, fmt.Errorf("service.CancelOrder: status %s: %w", order.Status, models.ErrNotCancellable)
+	}
+
+	if err := repo.UpdateOrderStatus(ctx, orderID, models.OrderStatusCancelled, order.Status); err != nil {
+		if errors.Is(err, models.ErrInvalidTransition) {
+			// A concurrent request changed the status between our read and write.
+			// Surface as NotCancellable — the caller should re-fetch and retry.
+			return nil, fmt.Errorf("service.CancelOrder: concurrent transition: %w", models.ErrNotCancellable)
+		}
+		return nil, fmt.Errorf("service.CancelOrder: update: %w", err)
+	}
+
+	// TODO: release inventory holds via shop-inventory-api adapter once wired.
+	// TODO: trigger refund via payments-api adapter once wired.
+
+	if s.eventBus != nil {
+		if pubErr := s.eventBus.Publish(ctx, "order.cancelled", map[string]any{
+			"order_id":     orderID,
+			"user_id":      userID,
+			"cancelled_at": time.Now().UTC().Format(time.RFC3339),
+		}); pubErr != nil {
+			logger.Warn("service.CancelOrder: failed to publish order.cancelled event",
+				logger.Attr("order_id", orderID),
+			)
+		}
+	}
+
+	order.Status = models.OrderStatusCancelled
+	order.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	return order, nil
 }
 

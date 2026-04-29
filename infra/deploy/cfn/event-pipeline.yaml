@@ -40,7 +40,7 @@ Parameters:
     Default: latest
     Description: >
       ECR image tag for the CDC Lambda container.
-      Build from apis/komodo-event-bus-api with Dockerfile.cdc targeting cmd/cdc.
+      Build from apis/komodo-events-api with Dockerfile.cdc targeting cmd/cdc.
       TODO: wire this to the CI pipeline image tag once the CDC Lambda is deployed.
 
   # DynamoDB Stream ARNs
@@ -704,10 +704,10 @@ Resources:
       RetentionInDays: 30
 
   # ── CDC Lambda Function ──────────────────────────────────────────────────────
-  # Container image Lambda — built from apis/komodo-event-bus-api using Dockerfile.cdc
+  # Container image Lambda — built from apis/komodo-events-api using Dockerfile.cdc
   # targeting cmd/cdc. The image must be pushed to ECR before this stack deploys.
   #
-  # TODO: create apis/komodo-event-bus-api/Dockerfile.cdc that builds cmd/cdc
+  # TODO: create apis/komodo-events-api/Dockerfile.cdc that builds cmd/cdc
   # as a provided.al2023 Lambda container image (binary named "bootstrap").
   # TODO: add a CI pipeline step to build and push the CDC image to ECR.
 
@@ -718,13 +718,13 @@ Resources:
       FunctionName: !Sub komodo-event-bus-cdc-${Environment}
       PackageType: Image
       Code:
-        ImageUri: !Sub ${AWSAccountId}.dkr.ecr.${AWSRegion}.amazonaws.com/komodo-event-bus-api-${Environment}:${CDCImageTag}
+        ImageUri: !Sub ${AWSAccountId}.dkr.ecr.${AWSRegion}.amazonaws.com/komodo-events-api-${Environment}:${CDCImageTag}
       Role: !GetAtt CDCLambdaRole.Arn
       MemorySize: 128
       Timeout: 60
       Environment:
         Variables:
-          APP_NAME: komodo-event-bus-api
+          APP_NAME: komodo-events-api
           ENV: !Ref Environment
           LOG_LEVEL: info
           AWS_REGION: !Ref AWSRegion

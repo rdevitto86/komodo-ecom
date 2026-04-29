@@ -7,22 +7,22 @@ Sections are ordered by dependency — local dev must work before AWS deploy mat
 ---
 
 ## Local Dev — Secrets Manager (LocalStack)
-> Only `auth-api` and `user-api` have secrets seeded. All other APIs fail to bootstrap locally.
+> All runnable APIs are now seeded. Remaining items are blocked on service scaffolding.
 
-- [ ] **[H]** Add `komodo-shop-items-api/local/all-secrets` to `01-init-secretsmanager.sh` — S3 bucket name, JWT keys, rate limits
-- [ ] **[H]** Add `komodo-cart-api/local/all-secrets` — ElastiCache endpoint/password/db, DynamoDB carts table, inventory-api URL, shop-items-api URL, JWT keys, hold TTL, guest TTL
-- [ ] **[H]** Add `komodo-shop-inventory-api/local/all-secrets` — DynamoDB inventory table, JWT keys, rate limits
-- [ ] **[H]** Add `komodo-order-api/local/all-secrets` — DynamoDB orders table, cart-api URL, payments-api URL, inventory-api URL, JWT keys
-- [ ] **[H]** Add `komodo-payments-api/local/all-secrets` — Stripe test keys, DynamoDB payments table, JWT keys
-- [ ] **[H]** Add `komodo-address-api/local/all-secrets` — address provider API key (stub value for local), JWT keys, rate limits
-- [ ] **[H]** Add `komodo-search-api/local/all-secrets` — Typesense host/API key (local Typesense or stub), JWT keys
-- [ ] **[M]** Add `komodo-support-api/local/all-secrets` — Anthropic API key, JWT keys, rate limits
-- [ ] **[M]** Add `komodo-order-returns-api/local/all-secrets` — DynamoDB returns table, order-api URL, payments-api URL, JWT keys
-- [ ] **[M]** Add `komodo-order-reservations-api/local/all-secrets` — DynamoDB reservations table, JWT keys
-- [ ] **[M]** Add `komodo-event-bus-api/local/all-secrets` — SNS topic ARNs (LocalStack), JWT keys
-- [ ] **[M]** Add `komodo-communications-api/local/all-secrets` — email/SMS provider keys (stub for local), JWT keys
-- [ ] **[M]** Add `komodo-loyalty-api/local/all-secrets` — DynamoDB loyalty table, JWT keys
-- [ ] **[M]** Add `komodo-reviews-api/local/all-secrets` — DynamoDB reviews table, JWT keys
+- [x] **[H]** Add `komodo-shop-items-api/local/all-secrets` to `01-init-secretsmanager.sh` — S3 bucket name, JWT keys, rate limits
+- [x] **[H]** Add `komodo-cart-api/local/all-secrets` — ElastiCache endpoint/password/db, DynamoDB carts table, inventory-api URL, shop-items-api URL, JWT keys, hold TTL, guest TTL
+- [x] **[H]** Add `komodo-shop-inventory-api/local/all-secrets` — DynamoDB inventory table, JWT keys, rate limits
+- [x] **[H]** Add `komodo-order-api/local/all-secrets` — DynamoDB orders table, cart-api URL, payments-api URL, inventory-api URL, JWT keys
+- [x] **[H]** Add `komodo-payments-api/local/all-secrets` — Stripe test keys, DynamoDB payments table, JWT keys
+- [x] **[H]** Add `komodo-address-api/local/all-secrets` — address provider API key (stub value for local), JWT keys, rate limits
+- [x] **[H]** Add `komodo-search-api/local/all-secrets` — Typesense host/API key (local Typesense or stub), JWT keys
+- [x] **[M]** Add `komodo-support-api/local/all-secrets` — Anthropic API key, JWT keys, rate limits
+- [ ] **[M]** Add `komodo-order-returns-api/local/all-secrets` — DynamoDB returns table, order-api URL, payments-api URL, JWT keys — **blocked: service not yet scaffolded**
+- [x] **[M]** Add `komodo-order-reservations-api/local/all-secrets` — DynamoDB reservations table, JWT keys
+- [x] **[H]** Add `komodo-event-bus-api/local/all-secrets` to `01-init-secretsmanager.sh` — JWT keys, `DYNAMO_EVENTS_TABLE=komodo-events`, `DYNAMO_SUBSCRIPTIONS_TABLE=komodo-event-subscriptions`, `DYNAMODB_ENDPOINT=http://host.docker.internal:4566`, `EVENT_TRANSPORT=dynamo`
+- [x] **[M]** Add `komodo-communications-api/local/all-secrets` — email/SMS provider keys (stub for local), JWT keys
+- [x] **[M]** Add `komodo-loyalty-api/local/all-secrets` — DynamoDB loyalty table, JWT keys
+- [ ] **[M]** Add `komodo-reviews-api/local/all-secrets` — DynamoDB reviews table, JWT keys — **blocked: service not yet scaffolded**
 - [ ] **[L]** Add `komodo-entitlements-api/local/all-secrets` and `komodo-features-api/local/all-secrets` once those services are scaffolded
 
 ---
@@ -30,6 +30,8 @@ Sections are ordered by dependency — local dev must work before AWS deploy mat
 ## Local Dev — DynamoDB Tables (LocalStack)
 > Only `komodo-users`, `komodo-sessions`, and `komodo-oauth-tokens` are created. All other service tables are TODO comments in `03-init-dynamodb.sh`.
 
+- [x] **[H]** Add `komodo-events` table to `03-init-dynamodb.sh` — PK: `event_id` (S), SK: `domain` (S); enable Streams NEW_AND_OLD_IMAGES; TTL attribute `expires_at`
+- [x] **[H]** Add `komodo-event-subscriptions` table to `03-init-dynamodb.sh` — PK: `event_type` (S), SK: `subscriber_url` (S), attr: `service_name`, `active`; seed with placeholder subscriber records
 - [ ] **[H]** Add `komodo-carts` table to `03-init-dynamodb.sh` — PK: `CART#<userId>`, SK: `METADATA` | `ITEM#<itemId>`; no TTL; streams optional
 - [ ] **[H]** Add `komodo-inventory` table — schema TBD in `apis/komodo-shop-inventory-api/docs/data-model.md` first; enable streams for CDC
 - [ ] **[H]** Add `komodo-orders` table — schema TBD in `apis/komodo-order-api/docs/data-model.md` first; enable streams for CDC
@@ -42,14 +44,14 @@ Sections are ordered by dependency — local dev must work before AWS deploy mat
 ---
 
 ## Local Dev — Docker Compose
-> Most services are listed in `services.jsonc` but several are missing or misconfigured.
+> All runnable services have compose blocks. Remaining items are either scaffolding-blocked or optional.
 
-- [ ] **[H]** Add `address-api` service to `infra/local/docker-compose.yml` (port 7031) — currently listed in `services.jsonc` as a profile but no compose block exists
-- [ ] **[H]** Add `cart-api` to compose (port 7043) with correct env vars once Dockerfile is confirmed
-- [ ] **[H]** Add `shop-inventory-api` to compose (port 7044)
-- [ ] **[M]** Add `support-api` to compose (port 7101) — needs Anthropic API key env var
-- [ ] **[M]** Add `order-reservations-api` to compose (port 7063)
-- [ ] **[M]** Add `event-bus-api` to compose (port 7002) with LocalStack SNS/SQS endpoints
+- [x] **[H]** Add `address-api` service to `infra/local/docker-compose.yml` (port 7031)
+- [x] **[H]** Add `cart-api` to compose (port 7043)
+- [x] **[H]** Add `shop-inventory-api` to compose (port 7044)
+- [x] **[M]** Add `support-api` to compose (port 7101)
+- [x] **[M]** Add `order-reservations-api` to compose (port 7063)
+- [x] **[M]** Add `event-bus-api` to compose (port 7002)
 - [ ] **[L]** Add `entitlements-api` (7021), `features-api` (7022) compose blocks once those services are scaffolded
 - [ ] **[L]** Add Typesense container to local compose so `search-api` can run fully locally
 
@@ -65,6 +67,9 @@ Sections are ordered by dependency — local dev must work before AWS deploy mat
 - [ ] **[M]** Add `komodo-returns` DynamoDB table resource
 - [ ] **[M]** Add `komodo-reservations` DynamoDB table resource
 - [ ] **[M]** Add `komodo-support-sessions` DynamoDB table resource
+- [ ] **[H]** Add `komodo-events` DynamoDB table — PAY_PER_REQUEST, Streams NEW_AND_OLD_IMAGES, TTL on `expires_at`, export StreamArn
+- [ ] **[H]** Add `komodo-event-subscriptions` DynamoDB table — PAY_PER_REQUEST, no streams
+- [ ] **[H]** Wire `EventsTableStreamArn` in `event-pipeline.yaml` once table is in `infra.yaml`
 - [ ] **[L]** Add `komodo-loyalty`, `komodo-reviews` DynamoDB table resources
 - [ ] **[H]** Add ECR repositories for missing services: `komodo-cart-api`, `komodo-shop-inventory-api`, `komodo-order-api`, `komodo-payments-api`, `komodo-support-api`, `komodo-search-api`, `komodo-communications-api`, `komodo-order-returns-api`
 - [ ] **[M]** Add ECR repos for: `komodo-loyalty-api`, `komodo-reviews-api`, `komodo-order-reservations-api`, `komodo-features-api`, `komodo-entitlements-api`

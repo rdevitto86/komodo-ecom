@@ -139,16 +139,23 @@ func GetPreferences(ctx context.Context, userID string) (*models.Preferences, er
 }
 
 func UpdatePreferences(ctx context.Context, userID string, prefs *models.Preferences) error {
-	// TODO: wire to repo.UpdateUserPreferences once that function exists (data-model.md pending).
-	_ = userID
-	_ = prefs
-	return fmt.Errorf("service.UpdatePreferences: not implemented")
+	if err := repo.UpdateUserPreferences(ctx, userID, prefs); err != nil {
+		if isNotFound(err) {
+			return fmt.Errorf("service.UpdatePreferences: %w", ErrNotFound)
+		}
+		return fmt.Errorf("service.UpdatePreferences: %w", err)
+	}
+	return nil
 }
 
 func DeletePreferences(ctx context.Context, userID string) error {
-	// TODO: wire to repo.DeleteUserPreferences once that function exists (data-model.md pending).
-	_ = userID
-	return fmt.Errorf("service.DeletePreferences: not implemented")
+	if err := repo.DeleteUserPreferences(ctx, userID); err != nil {
+		if isNotFound(err) {
+			return fmt.Errorf("service.DeletePreferences: %w", ErrNotFound)
+		}
+		return fmt.Errorf("service.DeletePreferences: %w", err)
+	}
+	return nil
 }
 
 // isNotFound checks whether an error originates from a DynamoDB item-not-found condition.
